@@ -38,6 +38,11 @@ class DataProcessor():
                 yield json.loads(line)
 
     def preprocess_dataset(self, out_dir: str, out_name: str):
+        if os.path.exists(f'{out_dir}/{out_name}.txt'):
+            print(f"The file {out_dir}/{out_name}.txt exists!")
+            return self.read_and_split_data(f'{out_dir}/{out_name}.txt')
+        print(f"Creating file {out_dir}/{out_name}.txt")
+
         # Read data from json, preprocess it, create f'{out_dir}/{out_name}.txt' file
         # return: [user_train, user_valid, user_test, usernum, itemnum]
         countU = defaultdict(lambda: 0)
@@ -126,7 +131,7 @@ class DataProcessor():
                 user_valid[user] = [User[user][-2][1]] 
                 user_test[user] = [User[user][-1][1]]
         print('End of data preprocessing.')
-        return [user_train, user_valid, user_test, usernum, itemnum]
+        return user_train, user_valid, user_test, usernum, itemnum
     
     def read_and_split_data(self, file_path):
         # Reads data from file_path and splits it into train, val, test

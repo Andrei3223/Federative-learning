@@ -1,0 +1,8 @@
+numpy
+torch
+tqdm
+hydra-core
+
+black
+isort
+pre-commit

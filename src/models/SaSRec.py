@@ -60,6 +60,8 @@ class SASRec(torch.nn.Module):
     def log2feats(self, log_seqs):
         # get the item embedding
         # seqs.shape = [batch_size, 1]
+        # print(log_seqs)
+
         seqs = self.item_emb(torch.LongTensor(log_seqs).to(self.dev))
         # seqs.shape = [batch_size, embeddings]
         # scale the values
@@ -122,6 +124,21 @@ class SASRec(torch.nn.Module):
         # preds = self.pos_sigmoid(logits) # rank same item list for different users
 
         return logits  # preds # (U, I)
+    
+    def __str__(self):
+        """
+        Model prints with the number of parameters.
+        """
+        all_parameters = sum([p.numel() for p in self.parameters()])
+        trainable_parameters = sum(
+            [p.numel() for p in self.parameters() if p.requires_grad]
+        )
+
+        result_info = super().__str__()
+        result_info = result_info + f"\nAll parameters: {all_parameters}"
+        result_info = result_info + f"\nTrainable parameters: {trainable_parameters}"
+
+        return result_info
 
 
 class SASRecSampledLoss(torch.nn.Module):

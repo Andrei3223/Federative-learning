@@ -1,0 +1,69 @@
+model:
+  _target_: src.models.SASRec
+  args:
+    hidden_units: 50
+    num_blocks: 2
+    num_heads: 1
+    dropout_rate: 0.5
+    maxlen: 50
+    l2_emb: 0.0
+    device: mps
+
+
+trainer:
+  max_len: 50
+  batch_size: 64
+  n_epochs: 100
+  l2_emb: 5e-5
+  weight_decay: 0.0001
+  val_freq: 20
+  # early_stopping:
+  #   enabled: false
+  #   patience: 10
+  #   min_delta: 0.001
+  device: mps # device name or "auto"
+optimizer:
+  _target_: torch.optim.AdamW
+  lr: 1e-3
+lr_scheduler:
+  _target_: torch.optim.lr_scheduler.StepLR
+  step_size: 20
+  gamma: 0.7
+  # _target_: torch.optim.lr_scheduler.OneCycleLR
+  # max_lr: 7e-4
+  # pct_start: 0.1
+  # steps_per_epoch: ${trainer.epoch_len}
+  # epochs: ${trainer.n_epochs}
+  # anneal_strategy: cos
+
+loss_function:
+  _target_: torch.nn.BCEWithLogitsLoss
+
+# self.config["trainer"]["max_grad_norm"]
+
+# Data Configuration
+data:
+  train_path: "data/train.csv"
+  val_path: "data/val.csv"
+  test_path: "data/test.csv"
+  target_column: "target"
+  features_columns: "all"  # Use "all" or a list of column names
+  validation_split: 0.2    # Only used if val_path is not provided
+  preprocessing:
+    scaling: "standard"  # Options: standard, minmax, robust, none
+    categorical_encoding: "one_hot"  # Options: one_hot, label, target
+    handle_missing: "mean"  # Options: mean, median, mode, drop
+
+# Logging and Checkpoints
+output:
+  model_save_path: "models/custom_model.pt"
+  log_dir: "logs/"
+  tensorboard: true
+  save_best_only: true
+  checkpoint_frequency: 5  # Save every N epochs
+
+# Hardware
+hardware:
+  device: "auto"  # "auto", "cpu", "cuda", "cuda:0", etc.
+  num_workers: 4
+  pin_memory: true

@@ -1,1 +1,1 @@
-from src.SaSRec import SaSRec, SASRecSampledLoss
+from src.models.SaSRec import SASRec, SASRecSampledLoss
