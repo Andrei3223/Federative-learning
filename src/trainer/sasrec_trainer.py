@@ -5,6 +5,7 @@ from torch.nn.utils import clip_grad_norm_
 import random
 from tqdm import tqdm
 import sys
+from pathlib import Path
 
 
 class BaseTrainer:
@@ -24,7 +25,7 @@ class BaseTrainer:
         dataloaders,
         dataset,
         # logger,
-        # writer,
+        writer,
         **kwargs,
     ):
         self.config = config
@@ -35,6 +36,8 @@ class BaseTrainer:
 
         # self.logger = logger
         self.log_step = config.trainer.get("log_step", 50)
+
+        self.writer = writer
 
         self.model = model
         self.criterion = criterion
@@ -56,12 +59,13 @@ class BaseTrainer:
 
         # define checkpoint dir and init everything if required
 
-        self.checkpoint_dir = self.config.get("checkpoint_dir", "models/sasrec.pth")
+        self.checkpoint_dir = Path(self.config.get("checkpoint_dir", "models"))
     
     def train(self):
-        for epoch in range(self.start_epoch, self.epochs):
+        for epoch in tqdm(range(self.start_epoch, self.epochs)):
             for batch_idx, batch in enumerate(
-                tqdm(self.train_dataloader, desc="train")
+                # tqdm(self.train_dataloader, desc="train")
+                self.train_dataloader
             ):
                 u, seq, pos, neg = batch["user"], batch["seq"], batch["pos"], batch["neg"]
                 # print(batch)q
@@ -92,17 +96,27 @@ class BaseTrainer:
                 # self._clip_grad_norm()
                 self.optimizer.step()
                 
-                print("loss in epoch {} iteration {}: {}".format(epoch, batch_idx, loss.item())) # expected 0.4~0.6 after init few epochs
+                self.writer.log({"train_loss":  loss.item()})
+
+                # print("loss in epoch {} iteration {}: {}".format(epoch, batch_idx, loss.item())) # expected 0.4~0.6 after init few epochs
 
             if self.lr_scheduler is not None:
                     self.lr_scheduler.step()
+            
+            lr = self.optimizer.param_groups[0]['lr']
+            self.writer.log({"learning_rate": lr})
 
-        if epoch % 20 == 0:
-            self.model.eval()
+            # print(epoch, self.cfg_trainer.get("val_freq", 10))
+            if epoch % self.cfg_trainer.get("val_freq", 10) == 0:
+                self.model.eval()
 
-            NDCG, HT = self.evaluate_valid(self.model, self.dataset, self.max_len)
+                NDCG, HT = self.evaluate_valid(self.model, self.dataset, self.max_len)
 
-            print(f"validation on {epoch=}: {NDCG=}, {HT=}")
+                self.writer.log({"NDCG": NDCG, "HT": HT})
+                print(f"validation on {epoch=}: {NDCG=}, {HT=}")
+            
+            if epoch % self.cfg_trainer.get("save_freq", 20) == 0:
+                self._save_checkpoint(epoch=epoch)
 
 
     
@@ -118,6 +132,7 @@ class BaseTrainer:
         Returns:
             NDCG@10 and HR@10 metrics
         """
+        print("evaluating")
         model.eval()
         
         [train, valid, test, usernum, itemnum] = copy.deepcopy(dataset)
@@ -150,38 +165,28 @@ class BaseTrainer:
             rated.add(0)
             
             # Add positive item (from validation) with 100 negative samples
-            item_idx = [valid[u]]  # check index
+            item_idx = [valid[u][0]]  # check index
             for _ in range(100):
                 t = np.random.randint(1, itemnum + 1)
                 while t in rated: 
                     t = np.random.randint(1, itemnum + 1)
                 item_idx.append(t)
 
-            seq_tensor = torch.LongTensor([seq]).to(self.device)
-            item_tensor = torch.LongTensor(item_idx).to(self.device)
+            # print(len(item_idx))
+            # seq_tensor = torch.LongTensor([seq]).to(self.device)
+            # item_tensor = torch.LongTensor(item_idx).to(self.device)
             
             # Get model predictions
             with torch.no_grad():
-                predictions = model(seq_tensor)
-                
-                # Extract relevant predictions for the sampled items
-                # Assuming model output shape is [batch_size, seq_len, num_items]
-                # and we want the prediction for the last position in sequence
-                last_position_preds = predictions[0, -1, :]  # Shape: [num_items]
-                
-                # Get predictions for sampled items only
-                item_predictions = last_position_preds[item_tensor]
-                
-                # Negate predictions to match original function behavior
-                item_predictions = -item_predictions
-                
-                # Convert to CPU and numpy if needed for further operations
-                item_predictions = item_predictions.cpu().numpy()
+                # predictions = model.predict(u, seq_tensor, item_idx)
+                # predictions = model.predict(u, seq, item_idx)
+                predictions = -model.predict(*[np.array(l) for l in [[u], [seq],item_idx]])
 
-            # Get rank of positive item (first item in the list)
-            rank = np.where(item_predictions.argsort() == 0)[0][0]
+                # print(predictions.shape)
+                predictions = predictions[0]
 
-            # Increment valid user counter
+                rank = predictions.argsort().argsort()[0].item()
+
             valid_user += 1
 
             # Calculate metrics
@@ -189,6 +194,7 @@ class BaseTrainer:
                 NDCG += 1 / np.log2(rank + 2)
                 HT += 1
 
+        # print(predictions)
         # Compute final metrics
         if valid_user > 0:
             NDCG = NDCG / valid_user
@@ -219,18 +225,19 @@ class BaseTrainer:
             "lr_scheduler": self.lr_scheduler.state_dict(),
             "config": self.config,
         }
-        filename = str(self.checkpoint_dir / f"checkpoint-epoch{epoch}.pth")
+        filename = str(self.checkpoint_dir / f"{self.config.wandb.run_name}checkpoint-epoch{epoch}.pth")
         if not (only_best and save_best):
             torch.save(state, filename)
-            if self.config.writer.log_checkpoints:
-                self.writer.add_checkpoint(filename, str(self.checkpoint_dir.parent))
-            self.logger.info(f"Saving checkpoint: {filename} ...")
-        if save_best:
-            best_path = str(self.checkpoint_dir / "model_best.pth")
-            torch.save(state, best_path)
-            if self.config.writer.log_checkpoints:
-                self.writer.add_checkpoint(best_path, str(self.checkpoint_dir.parent))
-            self.logger.info("Saving current best: model_best.pth ...")
+            if self.config.wandb.log_checkpoints:
+                self.writer.save(filename, str(self.checkpoint_dir.parent))
+            # self.logger.info(f"Saving checkpoint: {filename} ...")
+            print(f"Saving checkpoint: {filename} ...")
+        # if save_best:
+        #     best_path = str(self.checkpoint_dir / "model_best.pth")
+        #     torch.save(state, best_path)
+        #     if self.config.writer.log_checkpoints:
+        #         self.writer.add_checkpoint(best_path, str(self.checkpoint_dir.parent))
+        #     self.logger.info("Saving current best: model_best.pth ...")
 
     def _resume_checkpoint(self, resume_path):
         """

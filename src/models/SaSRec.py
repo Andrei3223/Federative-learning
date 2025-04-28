@@ -139,6 +139,8 @@ class SASRec(torch.nn.Module):
         result_info = result_info + f"\nTrainable parameters: {trainable_parameters}"
 
         return result_info
+    
+    # TODO get user tensor embed matrix
 
 
 class SASRecSampledLoss(torch.nn.Module):

@@ -4,6 +4,7 @@ import hydra
 import torch
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
+import wandb
 
 # from src.datasets.data_utils import get_dataloaders
 from src.trainer import BaseTrainer
@@ -38,13 +39,17 @@ def main(config):
     # setup data_loader instances
     # batch_transforms should be put on device
 
+    if config.train.federative:
+        pass
+        # TODO 2 dataproc, two sets of users, common set of users => third dataproc and loader 
+    data_proc = DataProcessor("data/Office_Products_5.json", "", min_hist_len=4)
 
-    data_proc = DataProcessor("data/Video_Games_5.json", "", min_hist_len=4)
-
-    user_train, user_valid, user_test, usernum, itemnum = data_proc.preprocess_dataset("data/preprocessed", "video_games_4")
+    user_train, user_valid, user_test, usernum, itemnum = data_proc.preprocess_dataset("data/preprocessed", "office_4")
 
     dataset = AmazonDataset(user_train, usernum, itemnum, 50)
-    train_loader = torch.utils.data.DataLoader(dataset, batch_size=config.trainer.batch_size, num_workers=2, pin_memory=True)
+    train_loader = torch.utils.data.DataLoader(
+        dataset, shuffle=True,
+        batch_size=config.trainer.batch_size, num_workers=2, pin_memory=True)
 
     # build model architecture, then print to console
     OmegaConf.set_struct(config, False)  
@@ -61,7 +66,16 @@ def main(config):
     optimizer = instantiate(config.optimizer, params=trainable_params)
     lr_scheduler = instantiate(config.lr_scheduler, optimizer=optimizer)
 
+    # wandb
+    run = wandb.init(
+        project=config.wandb.get("project"),
+        entity=config.wandb.get("entity"),
+        name=config.wandb.get("run_name"),
+        # mode=config.wandb.get("mode"),
+        # config=config.wandb.config 
+    )
 
+    # TODO new trainer: new params, 3 loaders, new logging 
     trainer = BaseTrainer(
         model=model,
         criterion=loss_function,
@@ -73,11 +87,13 @@ def main(config):
         dataset=[user_train, user_valid, user_test, usernum, itemnum],
         train_dataset=dataset,
         # logger=logger,
-        # writer=writer,
+        writer=run,
         # skip_oom=config.trainer.get("skip_oom", True),
     )
 
     trainer.train()
+
+    run.finish()
 
 
 if __name__ == "__main__":

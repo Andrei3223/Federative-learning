@@ -6,3 +6,5 @@ hydra-core
 black
 isort
 pre-commit
+
+wandb
