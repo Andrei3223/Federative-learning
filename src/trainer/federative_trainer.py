@@ -1,0 +1,145 @@
+from src.trainer import BaseTrainer
+
+from pathlib import Path
+import numpy as np
+import torch
+from tqdm import tqdm
+
+
+
+class FederativeTrainer(BaseTrainer):
+    """
+    Class for federative training of two models: A and B.
+    """
+
+    def __init__(
+        self,
+        model_A,
+        optimizer_A,
+        lr_scheduler_A,
+        dataset_A,
+
+        model_B,
+        optimizer_B,
+        lr_scheduler_B,
+        dataset_B,
+
+        config,
+        criterion,
+        dataloaders,
+
+        device,
+        writer,
+        **kwargs,
+    ):
+        self.config = config
+        self.config_trainer = self.config["trainer"]
+        self.cfg_trainer_A = self.config["trainer"]["domain_A"]
+        self.cfg_trainer_B = self.config["trainer"]["domain_B"]
+        self.max_len_A = self.cfg_trainer_A["max_len"]
+        self.max_len_B = self.cfg_trainer_B["max_len"]
+
+        self.device = device
+        self.writer = writer
+
+        self.model_A = model_A
+        self.optimizer_A = optimizer_A
+        self.lr_scheduler_A = lr_scheduler_A
+
+        self.model_B = model_B
+        self.optimizer_B = optimizer_B
+        self.lr_scheduler_B = lr_scheduler_B
+
+        self.criterion = criterion
+
+        self.train_dataloader_A = dataloaders["train_A"]
+        self.train_dataloader_B = dataloaders["train_B"]
+        self.dataset_A = dataset_A
+        self.dataset_B = dataset_B
+
+        # define epochs
+        self._last_epoch = 0  # required for saving on interruption
+        self.start_epoch = 1
+        self.epochs = self.cfg_trainer.n_epochs
+
+        # define checkpoint dir and init everything if required
+        self.checkpoint_dir = Path(self.config.get("checkpoint_dir", "models"))
+    
+    def train_epoch(self, train_config, model, train_dataloader, optimizer, lr_scheduler=None, name="A"):
+        model.train()
+        for batch in train_dataloader:
+            u, seq, pos, neg = batch["user"], batch["seq"], batch["pos"], batch["neg"]
+
+            pos_logits, neg_logits = model(u, seq, pos, neg)
+            pos_labels, neg_labels = torch.ones(pos_logits.shape, device=self.device), torch.zeros(neg_logits.shape, device=self.device)
+
+            optimizer.zero_grad()
+
+            indices = np.where(pos != 0)
+            loss = self.criterion(pos_logits[indices], pos_labels[indices])
+            loss += self.criterion(neg_logits[indices], neg_labels[indices])
+
+            l2_coef = train_config["l2_emb"]
+            for param in model.parameters():
+                if param.requires_grad:
+                    loss += l2_coef * torch.norm(param) 
+            loss.backward()
+            # self._clip_grad_norm()
+            optimizer.step()
+            
+            self.writer.log({f"train_loss_{name}":  loss.item()})
+        
+        if lr_scheduler is not None:
+            lr_scheduler.step()
+        lr = self.optimizer.param_groups[0]['lr']
+        self.writer.log({f"learning_rate_{name}": lr})
+
+        optimizer.zero_grad()
+    
+    def approximate_epoch(self):
+        self.optimizer_A.zero_grad()
+        self.optimizer_B.zero_grad()
+        self.optimizer_frob.zero_grad()
+
+        # TODO loader staff  1) train usual  2) loader!!! 3) write till the end 4) debug
+        seq_a, seq_b = None, None
+        emb_a = self.model_A.log2feats(seq_a)
+        emb_b = self.model_A.log2feats(seq_b)
+
+        print(emb_a.shape)
+
+        frob_loss = torch.norm(emb_a - emb_b, p='fro')
+        frob_loss.backward()
+        self.optimizer_frob.step()
+
+
+    def train(self):
+        name_A, name_B = self.cfg_trainer_A.dataset["name"], self.cfg_trainer_B.dataset["name"] 
+        for epoch in tqdm(range(self.start_epoch, self.epochs)):
+            self.train_epoch(
+                self.train_config_A, self.model_A,
+                self.train_dataloader_A, self.optimizer_A,
+                self.lr_scheduler_A, name_A,
+            )
+            self.train_epoch(
+                self.train_config_B, self.model_B,
+                self.train_dataloader_B, self.optimizer_B,
+                self.lr_scheduler_B, name_B,
+            )
+
+            if epoch % self.config_trainer.get("val_freq", 10) == 0:
+                self.model_A.eval()
+                self.model_B.eval()
+                NDCG, HT = self.evaluate_valid(self.model_A, self.dataset_A, self.max_len_A)
+                self.writer.log({f"NDCG_{name_A}": NDCG, f"HT_{name_A}": HT})
+                NDCG_B, HT_B = self.evaluate_valid(self.model_B, self.dataset_B, self.max_len_B)
+                self.writer.log({f"NDCG_{name_B}": NDCG_B, f"HT_{name_B}": HT_B})
+
+                print(f"validation on {epoch=}: {NDCG=}, {HT=}, {NDCG_B=}, {HT_B=}")
+
+            if epoch % self.config_trainer.get("save_freq", 20) == 0:
+                self._save_checkpoint(epoch=epoch, name=name_A, model=self.model_A)
+                self._save_checkpoint(epoch=epoch, name=name_B, model=self.model_B)
+
+
+

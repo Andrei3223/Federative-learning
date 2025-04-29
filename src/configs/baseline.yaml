@@ -35,9 +35,12 @@ lr_scheduler:
   # steps_per_epoch: ${trainer.epoch_len}
   # epochs: ${trainer.n_epochs}
   # anneal_strategy: cos
-
 loss_function:
   _target_: torch.nn.BCEWithLogitsLoss
+dataset:
+  min_hist_len: 4  # user has minimum k interactions, each item at least k times in dataset
+  data_path: data/datasets_5/Video_Games_5.json
+  name: video_games_1
 
 # self.config["trainer"]["max_grad_norm"]
 

@@ -1,0 +1,76 @@
+model:
+  _target_: src.models.SASRec
+  args:
+    hidden_units: 50
+    num_blocks: 2
+    num_heads: 1
+    dropout_rate: 0.5
+    maxlen: 50
+    l2_emb: 0.0
+    device: mps
+
+
+trainer:
+  domain_A:
+    max_len: 50
+    batch_size: 128
+    # n_epochs: 3
+    l2_emb: 5e-5
+    weight_decay: 0.0001
+    val_freq: 5
+    device: mps # device name ("cuda"/"cpu"/"mps") or "auto"
+    optimizer:
+      _target_: torch.optim.AdamW
+      lr: 1e-3
+    lr_scheduler:
+      _target_: torch.optim.lr_scheduler.StepLR
+      step_size: 10
+      gamma: 0.95
+    dataset:
+      min_hist_len: 4  # user has minimum k interactions, each item at least k times in dataset
+      data_path: data/datasets_5/Office_Products_5.json
+      name: office
+  
+  domain_B:
+    max_len: 50
+    batch_size: 128
+    # n_epochs: 3
+    l2_emb: 5e-5
+    weight_decay: 0.0001
+    val_freq: 5
+    device: mps # device name ("cuda"/"cpu"/"mps") or "auto"
+    optimizer:
+      _target_: torch.optim.AdamW
+      lr: 1e-3
+    lr_scheduler:
+      _target_: torch.optim.lr_scheduler.StepLR
+      step_size: 10
+      gamma: 0.95
+    dataset:
+      min_hist_len: 4  # user has minimum k interactions, each item at least k times in dataset
+      data_path: data/datasets_5/Video_Games_5.json
+      name: video_games
+  
+  federative: True
+  n_epochs: 50
+  save_freq: 5
+  val_freq: 5
+  embed_step_freq: 1  # approximation step ones in k epochs
+  lr: 1e-3
+
+      
+
+loss_function:
+  _target_: torch.nn.BCEWithLogitsLoss
+
+# self.config["trainer"]["max_grad_norm"]
+
+wandb:
+  project: "federative_learning"
+  log_checkpoints: True
+  entity: null
+  run_name: "office"
+  mode: "online"
+  config:
+    optimizer: AdamW
+  # loss_names: ["loss"]

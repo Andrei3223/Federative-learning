@@ -28,23 +28,23 @@ def main(config):
     # set_random_seed(config.trainer.seed)
 
     project_config = OmegaConf.to_container(config)
-    # logger = setup_saving_and_logging(config)
-    # writer = instantiate(config.writer, logger, project_config)
 
     if config.trainer.device == "auto":
         device = "cuda" if torch.cuda.is_available() else "cpu"
     else:
         device = config.trainer.device
 
-    # setup data_loader instances
-    # batch_transforms should be put on device
-
-    if config.train.federative:
+    if config.trainer.get("federative", False):
         pass
         # TODO 2 dataproc, two sets of users, common set of users => third dataproc and loader 
-    data_proc = DataProcessor("data/Office_Products_5.json", "", min_hist_len=4)
-
-    user_train, user_valid, user_test, usernum, itemnum = data_proc.preprocess_dataset("data/preprocessed", "office_4")
+    data_proc = DataProcessor(
+        config.dataset["data_path"], "",
+        min_hist_len=config.dataset["min_hist_len"]
+    )
+    user_train, user_valid, user_test, usernum, itemnum = data_proc.preprocess_dataset(
+        "data/preprocessed",
+        config.dataset["name"]
+    )
 
     dataset = AmazonDataset(user_train, usernum, itemnum, 50)
     train_loader = torch.utils.data.DataLoader(
@@ -56,7 +56,6 @@ def main(config):
     config.model.user_num = usernum
     config.model.item_num = itemnum
     model = instantiate(config.model).to(device)
-    # logger.info(model)
 
     # get function handles of loss and metrics
     loss_function = instantiate(config.loss_function).to(device)
@@ -71,7 +70,6 @@ def main(config):
         project=config.wandb.get("project"),
         entity=config.wandb.get("entity"),
         name=config.wandb.get("run_name"),
-        # mode=config.wandb.get("mode"),
         # config=config.wandb.config 
     )
 
@@ -86,7 +84,6 @@ def main(config):
         dataloaders={"train": train_loader},
         dataset=[user_train, user_valid, user_test, usernum, itemnum],
         train_dataset=dataset,
-        # logger=logger,
         writer=run,
         # skip_oom=config.trainer.get("skip_oom", True),
     )

@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 
-class BaseTrainer:
+class BaseTrainer():
     """
     Base class for all trainers.
     """
@@ -17,14 +17,12 @@ class BaseTrainer:
         self,
         model,
         criterion,
-        # metrics,
         optimizer,
         lr_scheduler,
         config,
         device,
         dataloaders,
         dataset,
-        # logger,
         writer,
         **kwargs,
     ):
@@ -33,10 +31,6 @@ class BaseTrainer:
         self.max_len = self.cfg_trainer["max_len"]
 
         self.device = device
-
-        # self.logger = logger
-        self.log_step = config.trainer.get("log_step", 50)
-
         self.writer = writer
 
         self.model = model
@@ -45,7 +39,6 @@ class BaseTrainer:
         self.lr_scheduler = lr_scheduler
 
         self.train_dataloader = dataloaders["train"]
-        # self.val_dataloader = dataloaders["val"]
 
         self.dataset = dataset
 
@@ -54,15 +47,13 @@ class BaseTrainer:
         self.start_epoch = 1
         self.epochs = self.cfg_trainer.n_epochs
 
-        # define metrics
-        # self.metrics = metrics
 
         # define checkpoint dir and init everything if required
-
         self.checkpoint_dir = Path(self.config.get("checkpoint_dir", "models"))
     
     def train(self):
         for epoch in tqdm(range(self.start_epoch, self.epochs)):
+            self.model.train()
             for batch_idx, batch in enumerate(
                 # tqdm(self.train_dataloader, desc="train")
                 self.train_dataloader
@@ -205,7 +196,7 @@ class BaseTrainer:
 
         return NDCG, HT
     
-    def _save_checkpoint(self, epoch, save_best=False, only_best=False):
+    def _save_checkpoint(self, epoch, save_best=False, only_best=False, name="", model=None):
         """
         Save the checkpoints.
 
@@ -215,17 +206,21 @@ class BaseTrainer:
             only_best (bool): if True and the checkpoint is the best, save it only as
                 'model_best.pth'(do not duplicate the checkpoint as
                 checkpoint-epochEpochNumber.pth)
+            name (string)
+            model torch.nn.Module
         """
-        arch = type(self.model).__name__
+        if not model:
+            model = self.model
+        arch = type(model).__name__
         state = {
             "arch": arch,
             "epoch": epoch,
-            "state_dict": self.model.state_dict(),
+            "state_dict": model.state_dict(),
             "optimizer": self.optimizer.state_dict(),
             "lr_scheduler": self.lr_scheduler.state_dict(),
             "config": self.config,
         }
-        filename = str(self.checkpoint_dir / f"{self.config.wandb.run_name}checkpoint-epoch{epoch}.pth")
+        filename = str(self.checkpoint_dir / f"{self.config.wandb.run_name}_{name}checkpoint-epoch{epoch}.pth")
         if not (only_best and save_best):
             torch.save(state, filename)
             if self.config.wandb.log_checkpoints:
