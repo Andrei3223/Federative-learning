@@ -20,6 +20,8 @@ class DataProcessor():
             itemmap=None,
             usernum=None,
             itemnum=None,
+
+            use_file=True,
         ):
         self.data_path = data_path
         self.meta_path = meta_path
@@ -31,6 +33,8 @@ class DataProcessor():
         self.user_num = usernum
         self.item_num = itemnum
 
+        self.use_file = use_file
+
     def parse(self, path: str):
         # g = gzip.open(path, 'r')
         with open(path, 'r', encoding='utf-8') as file:
@@ -38,10 +42,14 @@ class DataProcessor():
                 yield json.loads(line)
 
     def preprocess_dataset(self, out_dir: str, out_name: str):
-        if os.path.exists(f'{out_dir}/{out_name}.txt'):
-            print(f"The file {out_dir}/{out_name}.txt exists!")
-            return self.read_and_split_data(f'{out_dir}/{out_name}.txt')
-        print(f"Creating file {out_dir}/{out_name}.txt")
+        '''
+        parse dataset, get users and item min_hist_len history, put in the file
+        '''
+        if self.use_file:
+            if os.path.exists(f'{out_dir}/{out_name}.txt'):
+                print(f"The file {out_dir}/{out_name}.txt exists!")
+                return self.read_and_split_data(f'{out_dir}/{out_name}.txt')
+            print(f"Creating file {out_dir}/{out_name}.txt")
 
         # Read data from json, preprocess it, create f'{out_dir}/{out_name}.txt' file
         # return: [user_train, user_valid, user_test, usernum, itemnum]
@@ -105,10 +113,11 @@ class DataProcessor():
         
         print(f"{usernum=}, {itemnum=}")
         
-        with open(f'{out_dir}/{out_name}.txt', 'w') as f:
-            for user in User.keys():
-                for i in User[user]:
-                    f.write('%d %d\n' % (user, i[1]))
+        if self.use_file:
+            with open(f'{out_dir}/{out_name}.txt', 'w') as f:
+                for user in User.keys():
+                    for i in User[user]:
+                        f.write('%d %d\n' % (user, i[1]))
         
         self.User = User
         self.user_map = usermap

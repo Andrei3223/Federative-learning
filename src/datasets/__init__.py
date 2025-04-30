@@ -1,2 +1,2 @@
 from src.datasets.AmazonDataset import AmazonDataset, DataProcessor
-from src.datasets.common import merge_with_common_ids_comprehensive
+from src.datasets.FederativeDataset import FederativeDataset

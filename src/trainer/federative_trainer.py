@@ -28,6 +28,9 @@ class FederativeTrainer(BaseTrainer):
         criterion,
         dataloaders,
 
+        optimizer_frob,
+        lr_scheduler_frob,
+
         device,
         writer,
         **kwargs,
@@ -54,13 +57,16 @@ class FederativeTrainer(BaseTrainer):
 
         self.train_dataloader_A = dataloaders["train_A"]
         self.train_dataloader_B = dataloaders["train_B"]
+        self.common_loader = dataloaders["common"]
         self.dataset_A = dataset_A
         self.dataset_B = dataset_B
 
+        self.optimizer_frob = optimizer_frob
+        self.lr_scheduler_frob = lr_scheduler_frob
         # define epochs
         self._last_epoch = 0  # required for saving on interruption
         self.start_epoch = 1
-        self.epochs = self.cfg_trainer.n_epochs
+        self.epochs = self.config_trainer.n_epochs
 
         # define checkpoint dir and init everything if required
         self.checkpoint_dir = Path(self.config.get("checkpoint_dir", "models"))
@@ -91,7 +97,7 @@ class FederativeTrainer(BaseTrainer):
         
         if lr_scheduler is not None:
             lr_scheduler.step()
-        lr = self.optimizer.param_groups[0]['lr']
+        lr = optimizer.param_groups[0]['lr']
         self.writer.log({f"learning_rate_{name}": lr})
 
         optimizer.zero_grad()
@@ -99,33 +105,49 @@ class FederativeTrainer(BaseTrainer):
     def approximate_epoch(self):
         self.optimizer_A.zero_grad()
         self.optimizer_B.zero_grad()
+    
+        for batch in self.common_loader:
+
+            self.optimizer_frob.zero_grad()
+            self.model_A.train()
+            self.model_B.train()
+            # TODO loader staff  1) loader!!! 3) write till the end 4) debug
+            seq_a, seq_b = batch["seq_A"], batch["seq_B"]
+            emb_a = self.model_A.log2feats(seq_a)[..., -1]
+            emb_b = self.model_B.log2feats(seq_b)[..., -1]
+
+            # print(emb_a.shape)
+
+            frob_loss = torch.norm(emb_a - emb_b, p='fro')
+            frob_loss.backward()
+            self.optimizer_frob.step()
+
+            self.writer.log({f"frob_loss":  frob_loss.item()})
+        
+        if self.lr_scheduler_frob is not None:
+            self.lr_scheduler_frob.step()
+        lr = self.optimizer_frob.param_groups[0]['lr']
+        self.writer.log({"learning_rate_approx": lr})
+
         self.optimizer_frob.zero_grad()
-
-        # TODO loader staff  1) train usual  2) loader!!! 3) write till the end 4) debug
-        seq_a, seq_b = None, None
-        emb_a = self.model_A.log2feats(seq_a)
-        emb_b = self.model_A.log2feats(seq_b)
-
-        print(emb_a.shape)
-
-        frob_loss = torch.norm(emb_a - emb_b, p='fro')
-        frob_loss.backward()
-        self.optimizer_frob.step()
 
 
     def train(self):
         name_A, name_B = self.cfg_trainer_A.dataset["name"], self.cfg_trainer_B.dataset["name"] 
         for epoch in tqdm(range(self.start_epoch, self.epochs)):
             self.train_epoch(
-                self.train_config_A, self.model_A,
+                self.cfg_trainer_A, self.model_A,
                 self.train_dataloader_A, self.optimizer_A,
                 self.lr_scheduler_A, name_A,
             )
             self.train_epoch(
-                self.train_config_B, self.model_B,
+                self.cfg_trainer_B, self.model_B,
                 self.train_dataloader_B, self.optimizer_B,
                 self.lr_scheduler_B, name_B,
             )
+
+            if epoch % self.config_trainer.get("embed_step_freq", 10) == 0:
+                self.approximate_epoch()
 
             if epoch % self.config_trainer.get("val_freq", 10) == 0:
                 self.model_A.eval()
@@ -140,6 +162,3 @@ class FederativeTrainer(BaseTrainer):
             if epoch % self.config_trainer.get("save_freq", 20) == 0:
                 self._save_checkpoint(epoch=epoch, name=name_A, model=self.model_A)
                 self._save_checkpoint(epoch=epoch, name=name_B, model=self.model_B)
-
-
-
