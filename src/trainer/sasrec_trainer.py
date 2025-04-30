@@ -196,7 +196,9 @@ class BaseTrainer():
 
         return NDCG, HT
     
-    def _save_checkpoint(self, epoch, save_best=False, only_best=False, name="", model=None):
+    def _save_checkpoint(self, epoch, save_best=False, only_best=False, name="",
+                         model=None, optimizer=None, lr_scheduler=None,
+        ):
         """
         Save the checkpoints.
 
@@ -211,13 +213,15 @@ class BaseTrainer():
         """
         if not model:
             model = self.model
+        optimizer = optimizer if optimizer else self.optimizer
+        lr_scheduler = lr_scheduler if lr_scheduler else self.lr_scheduler
         arch = type(model).__name__
         state = {
             "arch": arch,
             "epoch": epoch,
             "state_dict": model.state_dict(),
-            "optimizer": self.optimizer.state_dict(),
-            "lr_scheduler": self.lr_scheduler.state_dict(),
+            "optimizer": optimizer.state_dict(),
+            "lr_scheduler": lr_scheduler.state_dict(),
             "config": self.config,
         }
         filename = str(self.checkpoint_dir / f"{self.config.wandb.run_name}_{name}checkpoint-epoch{epoch}.pth")

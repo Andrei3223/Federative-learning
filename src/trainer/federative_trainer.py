@@ -160,5 +160,5 @@ class FederativeTrainer(BaseTrainer):
                 print(f"validation on {epoch=}: {NDCG=}, {HT=}, {NDCG_B=}, {HT_B=}")
 
             if epoch % self.config_trainer.get("save_freq", 20) == 0:
-                self._save_checkpoint(epoch=epoch, name=name_A, model=self.model_A)
-                self._save_checkpoint(epoch=epoch, name=name_B, model=self.model_B)
+                self._save_checkpoint(epoch=epoch, name=name_A, model=self.model_A, optimizer=self.optimizer_A, lr_scheduler=self.lr_scheduler_A)
+                self._save_checkpoint(epoch=epoch, name=name_B, model=self.model_B, optimizer=self.optimizer_B, lr_scheduler=self.lr_scheduler_B)

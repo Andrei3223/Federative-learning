@@ -12,7 +12,7 @@ model:
 trainer:
   max_len: 50
   batch_size: 128
-  n_epochs: 100
+  n_epochs: 80
   l2_emb: 5e-5
   weight_decay: 0.0001
   val_freq: 5
@@ -27,7 +27,7 @@ optimizer:
   lr: 1e-3
 lr_scheduler:
   _target_: torch.optim.lr_scheduler.StepLR
-  step_size: 15
+  step_size: 10
   gamma: 0.95
   # _target_: torch.optim.lr_scheduler.OneCycleLR
   # max_lr: 7e-4
@@ -39,9 +39,10 @@ loss_function:
   _target_: torch.nn.BCEWithLogitsLoss
 dataset:
   min_hist_len: 4  # user has minimum k interactions, each item at least k times in dataset
-  data_path: data/datasets_5/Video_Games_5.json
-  name: video_games_1
-
+  # data_path: data/datasets_5/Video_Games_5.json
+  # name: video_games_1
+  data_path: data/datasets_5/Office_Products_5.json
+  name: office
 # self.config["trainer"]["max_grad_norm"]
 
 wandb:
