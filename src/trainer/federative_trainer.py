@@ -4,6 +4,7 @@ from pathlib import Path
 import numpy as np
 import torch
 from tqdm import tqdm
+import os
 
 
 
@@ -70,6 +71,8 @@ class FederativeTrainer(BaseTrainer):
 
         # define checkpoint dir and init everything if required
         self.checkpoint_dir = Path(self.config.get("checkpoint_dir", "models"))
+        if not os.path.exists(self.checkpoint_dir):
+            os.makedirs(self.checkpoint_dir)
     
     def train_epoch(self, train_config, model, train_dataloader, optimizer, lr_scheduler=None, name="A"):
         model.train()
@@ -93,12 +96,12 @@ class FederativeTrainer(BaseTrainer):
             # self._clip_grad_norm()
             optimizer.step()
             
-            self.writer.log({f"train_loss_{name}":  loss.item()})
+            self.writer.log({f"train_loss_{name}":  loss.item()}, commit=False)
         
         if lr_scheduler is not None:
             lr_scheduler.step()
         lr = optimizer.param_groups[0]['lr']
-        self.writer.log({f"learning_rate_{name}": lr})
+        self.writer.log({f"learning_rate_{name}": lr}, commit=False)
 
         optimizer.zero_grad()
     
@@ -122,12 +125,12 @@ class FederativeTrainer(BaseTrainer):
             frob_loss.backward()
             self.optimizer_frob.step()
 
-            self.writer.log({f"frob_loss":  frob_loss.item()})
+            self.writer.log({f"frob_loss":  frob_loss.item()}, commit=False)
         
         if self.lr_scheduler_frob is not None:
             self.lr_scheduler_frob.step()
         lr = self.optimizer_frob.param_groups[0]['lr']
-        self.writer.log({"learning_rate_approx": lr})
+        self.writer.log({"learning_rate_approx": lr}, commit=False)
 
         self.optimizer_frob.zero_grad()
 
@@ -153,12 +156,14 @@ class FederativeTrainer(BaseTrainer):
                 self.model_A.eval()
                 self.model_B.eval()
                 NDCG, HT = self.evaluate_valid(self.model_A, self.dataset_A, self.max_len_A)
-                self.writer.log({f"NDCG_{name_A}": NDCG, f"HT_{name_A}": HT})
+                self.writer.log({f"NDCG_{name_A}": NDCG, f"HT_{name_A}": HT}, commit=False)
                 NDCG_B, HT_B = self.evaluate_valid(self.model_B, self.dataset_B, self.max_len_B)
-                self.writer.log({f"NDCG_{name_B}": NDCG_B, f"HT_{name_B}": HT_B})
+                self.writer.log({f"NDCG_{name_B}": NDCG_B, f"HT_{name_B}": HT_B}, commit=False)
 
                 print(f"validation on {epoch=}: {NDCG=}, {HT=}, {NDCG_B=}, {HT_B=}")
 
             if epoch % self.config_trainer.get("save_freq", 20) == 0:
                 self._save_checkpoint(epoch=epoch, name=name_A, model=self.model_A, optimizer=self.optimizer_A, lr_scheduler=self.lr_scheduler_A)
                 self._save_checkpoint(epoch=epoch, name=name_B, model=self.model_B, optimizer=self.optimizer_B, lr_scheduler=self.lr_scheduler_B)
+            
+            self.writer.log({}, commit=True)

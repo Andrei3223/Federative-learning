@@ -78,7 +78,10 @@ def main(config):
         OmegaConf.set_struct(config, False)  
         config.model.user_num = usernum_B
         config.model.item_num = itemnum_B
+
         model_B = instantiate(config.model).to(device)
+        filtered_state_dict = {k: v for k, v in model.state_dict().items() if 'item_emb' not in k}
+        model_B.load_state_dict(filtered_state_dict, strict=False)
 
         trainable_params_B = filter(lambda p: p.requires_grad, model_B.parameters())
         optimizer_B = instantiate(config.trainer.domain_B.optimizer, params=trainable_params_B)
@@ -139,7 +142,7 @@ def main(config):
         project=config.wandb.get("project"),
         entity=config.wandb.get("entity"),
         name=config.wandb.get("run_name"),
-        # config=config.wandb.config 
+        config=project_config
     )
 
     if config.trainer.get("federative", False):

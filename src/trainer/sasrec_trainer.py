@@ -6,6 +6,7 @@ import random
 from tqdm import tqdm
 import sys
 from pathlib import Path
+import os
 
 
 class BaseTrainer():
@@ -50,6 +51,8 @@ class BaseTrainer():
 
         # define checkpoint dir and init everything if required
         self.checkpoint_dir = Path(self.config.get("checkpoint_dir", "models"))
+        if not os.path.exists(self.checkpoint_dir):
+            os.makedirs(self.checkpoint_dir)
     
     def train(self):
         for epoch in tqdm(range(self.start_epoch, self.epochs)):

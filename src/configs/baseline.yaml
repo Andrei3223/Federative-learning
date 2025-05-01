@@ -12,11 +12,11 @@ model:
 trainer:
   max_len: 50
   batch_size: 128
-  n_epochs: 80
+  n_epochs: 201
   l2_emb: 5e-5
   weight_decay: 0.0001
   val_freq: 5
-  save_freq: 5
+  save_freq: 20
   # early_stopping:
   #   enabled: false
   #   patience: 10
@@ -39,17 +39,17 @@ loss_function:
   _target_: torch.nn.BCEWithLogitsLoss
 dataset:
   min_hist_len: 4  # user has minimum k interactions, each item at least k times in dataset
-  # data_path: data/datasets_5/Video_Games_5.json
-  # name: video_games_1
-  data_path: data/datasets_5/Office_Products_5.json
-  name: office
+  data_path: data/datasets_5/Video_Games_5.json
+  name: video_games_1
+  # data_path: data/datasets_5/Office_Products_5.json
+  # name: office
 # self.config["trainer"]["max_grad_norm"]
 
 wandb:
   project: "federative_learning"
   log_checkpoints: True
   entity: null
-  run_name: "office"
+  run_name: "video_games"
   mode: "online"
   config:
     optimizer: AdamW
