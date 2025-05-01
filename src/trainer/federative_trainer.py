@@ -96,12 +96,13 @@ class FederativeTrainer(BaseTrainer):
             # self._clip_grad_norm()
             optimizer.step()
             
-            self.writer.log({f"train_loss_{name}":  loss.item()}, commit=False)
+            self.writer.log({f"train_loss_{name}":  loss.item()})
         
         if lr_scheduler is not None:
             lr_scheduler.step()
         lr = optimizer.param_groups[0]['lr']
-        self.writer.log({f"learning_rate_{name}": lr}, commit=False)
+        self.writer.log({f"learning_rate_{name}": lr})
+        # self.writer.log({}, commit=True)
 
         optimizer.zero_grad()
     
@@ -125,12 +126,13 @@ class FederativeTrainer(BaseTrainer):
             frob_loss.backward()
             self.optimizer_frob.step()
 
-            self.writer.log({f"frob_loss":  frob_loss.item()}, commit=False)
+            self.writer.log({f"frob_loss":  frob_loss.item()})
         
         if self.lr_scheduler_frob is not None:
             self.lr_scheduler_frob.step()
         lr = self.optimizer_frob.param_groups[0]['lr']
-        self.writer.log({"learning_rate_approx": lr}, commit=False)
+        self.writer.log({"learning_rate_approx": lr})
+        # self.writer.log({}, commit=True)
 
         self.optimizer_frob.zero_grad()
 
