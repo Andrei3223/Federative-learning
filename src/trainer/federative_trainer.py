@@ -140,6 +140,9 @@ class FederativeTrainer(BaseTrainer):
     def train(self):
         name_A, name_B = self.cfg_trainer_A.dataset["name"], self.cfg_trainer_B.dataset["name"] 
         for epoch in tqdm(range(self.start_epoch, self.epochs)):
+            if epoch % self.config_trainer.get("embed_step_freq", 10) == 0:
+                self.approximate_epoch()
+
             self.train_epoch(
                 self.cfg_trainer_A, self.model_A,
                 self.train_dataloader_A, self.optimizer_A,
@@ -150,9 +153,6 @@ class FederativeTrainer(BaseTrainer):
                 self.train_dataloader_B, self.optimizer_B,
                 self.lr_scheduler_B, name_B,
             )
-
-            if epoch % self.config_trainer.get("embed_step_freq", 10) == 0:
-                self.approximate_epoch()
 
             if epoch % self.config_trainer.get("val_freq", 10) == 0:
                 self.model_A.eval()
