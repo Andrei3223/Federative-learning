@@ -23,7 +23,7 @@ class BaseTrainer():
         config,
         device,
         dataloaders,
-        dataset,
+        dataset,  #  = [train, valid, test, usernum, itemnum]
         writer,
         **kwargs,
     ):
@@ -114,14 +114,15 @@ class BaseTrainer():
 
 
     
-    def evaluate_valid(self, model, dataset, maxlen):
+    def evaluate_valid(self, model, dataset, maxlen, idxs=None):
         """
         Evaluates a PyTorch recommendation model on validation data
         
         Args:
             model: PyTorch model
             dataset: Dataset containing train, valid, test sets and user/item counts
-            maxlen: maxlen 
+            maxlen: maxlen
+            idxs: indexes of users to evaluate
         
         Returns:
             NDCG@10 and HR@10 metrics
@@ -136,7 +137,9 @@ class BaseTrainer():
         HT = 0.0
         
         # Sample users if there are too many
-        if usernum > 10000:
+        if idxs:
+            users = idxs
+        elif usernum > 10000:
             users = random.sample(range(1, usernum + 1), 10000)
         else:
             users = range(1, usernum + 1)

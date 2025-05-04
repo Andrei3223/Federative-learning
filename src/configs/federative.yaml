@@ -57,7 +57,7 @@ trainer:
   federative: True
   n_epochs: 401
   save_freq: 20
-  val_freq: 10
+  val_freq: 1
   common_data_bs: 256
   embed_step_freq: 1  # approximation step ones in k epochs
 

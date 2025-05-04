@@ -1,0 +1,32 @@
+model:
+  _target_: src.models.SASRec
+  args:
+    hidden_units: 50
+    num_blocks: 2
+    num_heads: 1
+    dropout_rate: 0.5
+    maxlen: 50
+    l2_emb: 0.0
+    device: mps
+
+trainer:
+  domain_A:
+    max_len: 50
+    batch_size: 512
+    model_path: models/best/office_checkpoint-epoch75.pth
+    dataset:
+      min_hist_len: 4  # user has minimum k interactions, each item at least k times in dataset
+      data_path: data/datasets_5/Office_Products_5.json
+      name: office
+  domain_B:
+    max_len: 50
+    batch_size: 512
+    model_path: models/best/video_games_checkpoint-epoch200.pth
+    dataset:
+      min_hist_len: 4  # user has minimum k interactions, each item at least k times in dataset
+      data_path: data/datasets_5/Video_Games_5.json
+      name: video_games
+  device: mps # device name ("cuda"/"cpu"/"mps") or "auto"
+  federative: True
+  n_epochs: -1
+  common_data_bs: 256

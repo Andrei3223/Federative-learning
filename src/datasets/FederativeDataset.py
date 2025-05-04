@@ -51,14 +51,17 @@ class FederativeDataset():
         id1: list[items1], id2: list[items2] -> real_id: (id1, list[items1], id2, list[items2])
         '''
         # Find common IDs
-        common_ids = set(user_map1.keys()) & set(user_map2.keys())
-        num_common_ids = len(common_ids)
+        self.common_ids = set(user_map1.keys()) & set(user_map2.keys())
+        num_common_ids = len(self.common_ids)
         
         # Create the merged result
         result = []
 
-        for common_id in common_ids:
+        self.idxs_A, self.idxs_B = [], [] 
+        for common_id in self.common_ids:
             id1, id2 = user_map1[common_id], user_map2[common_id]
+            self.idxs_A.append(id1)
+            self.idxs_B.append(id2)
             result.append((id1, dict1[id1], id2, dict2[id2]))
         
         return result, num_common_ids

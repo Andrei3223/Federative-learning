@@ -7,7 +7,7 @@ model:
     dropout_rate: 0.5
     maxlen: 50
     l2_emb: 0.0
-    device: mps
+    device: cuda
 
 trainer:
   max_len: 50
@@ -15,13 +15,9 @@ trainer:
   n_epochs: 301
   l2_emb: 5e-5
   weight_decay: 0.0001
-  val_freq: 10
-  save_freq: 20
-  # early_stopping:
-  #   enabled: false
-  #   patience: 10
-  #   min_delta: 0.001
-  device: mps # device name or "auto"
+  val_freq: 15
+  save_freq: 30
+  device: cuda # device name or "auto"
 optimizer:
   _target_: torch.optim.AdamW
   lr: 1e-3
@@ -39,8 +35,9 @@ loss_function:
   _target_: torch.nn.BCEWithLogitsLoss
 dataset:
   min_hist_len: 4  # user has minimum k interactions, each item at least k times in dataset
-  data_path: data/datasets_5/Movies_and_TV_5.json
-  name: movies
+  # data_path: data/datasets_5/Movies_and_TV_5.json
+  data_path: /kaggle/working/Video_Games_5.json
+  name: video_games
   # data_path: data/datasets_5/Kindle_Store_5.json
   # name: kindle
   # data_path: data/datasets_5/Office_Products_5.json

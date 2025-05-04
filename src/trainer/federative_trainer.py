@@ -18,12 +18,12 @@ class FederativeTrainer(BaseTrainer):
         model_A,
         optimizer_A,
         lr_scheduler_A,
-        dataset_A,
+        dataset_A,  #  = [train, valid, test, usernum, itemnum]
 
         model_B,
         optimizer_B,
         lr_scheduler_B,
-        dataset_B,
+        dataset_B,  #  = [train, valid, test, usernum, itemnum]
 
         config,
         criterion,
@@ -34,6 +34,9 @@ class FederativeTrainer(BaseTrainer):
 
         device,
         writer,
+
+        idxs_common_A=None,  # user idxs from domain A which active on domain B
+        idxs_common_B=None,
         **kwargs,
     ):
         self.config = config
@@ -64,6 +67,8 @@ class FederativeTrainer(BaseTrainer):
 
         self.optimizer_frob = optimizer_frob
         self.lr_scheduler_frob = lr_scheduler_frob
+
+        self.idxs_common_A, self.idxs_common_B = idxs_common_A, idxs_common_B
         # define epochs
         self._last_epoch = 0  # required for saving on interruption
         self.start_epoch = 1
@@ -115,9 +120,9 @@ class FederativeTrainer(BaseTrainer):
             self.optimizer_frob.zero_grad()
             self.model_A.train()
             self.model_B.train()
-            # TODO loader staff  1) loader!!! 3) write till the end 4) debug
+            
             seq_a, seq_b = batch["seq_A"], batch["seq_B"]
-            emb_a = self.model_A.log2feats(seq_a)[..., -1]
+            emb_a = self.model_A.log2feats(seq_a)[..., -1]  # for sasrec take only last embed
             emb_b = self.model_B.log2feats(seq_b)[..., -1]
 
             # print(emb_a.shape)
@@ -162,6 +167,11 @@ class FederativeTrainer(BaseTrainer):
                 NDCG_B, HT_B = self.evaluate_valid(self.model_B, self.dataset_B, self.max_len_B)
                 self.writer.log({f"NDCG_{name_B}": NDCG_B, f"HT_{name_B}": HT_B}, commit=False)
 
+                NDCG, HT = self.evaluate_valid(self.model_A, self.dataset_A, self.max_len_A, self.idxs_common_A)
+                self.writer.log({f"NDCG_{name_A}_common_users": NDCG, f"HT_{name_A}_common_users": HT}, commit=False)
+                NDCG_B, HT_B = self.evaluate_valid(self.model_B, self.dataset_B, self.max_len_B, self.idxs_common_B)
+                self.writer.log({f"NDCG_{name_B}_common_users": NDCG_B, f"HT_{name_B}_common_users": HT_B}, commit=False)
+
                 print(f"validation on {epoch=}: {NDCG=}, {HT=}, {NDCG_B=}, {HT_B=}")
 
             if epoch % self.config_trainer.get("save_freq", 20) == 0:
@@ -169,3 +179,22 @@ class FederativeTrainer(BaseTrainer):
                 self._save_checkpoint(epoch=epoch, name=name_B, model=self.model_B, optimizer=self.optimizer_B, lr_scheduler=self.lr_scheduler_B)
             
             self.writer.log({}, commit=True)
+    
+    def inference(self):
+        name_A, name_B = self.cfg_trainer_A.dataset["name"], self.cfg_trainer_B.dataset["name"]
+        self.model_A.eval()
+        self.model_B.eval()
+        result = {}
+        NDCG, HT = self.evaluate_valid(self.model_A, self.dataset_A, self.max_len_A)
+        result |= {f"NDCG_{name_A}": NDCG, f"HT_{name_A}": HT}
+        NDCG_B, HT_B = self.evaluate_valid(self.model_B, self.dataset_B, self.max_len_B)
+        result |= {f"NDCG_{name_B}": NDCG_B, f"HT_{name_B}": HT_B}
+
+        NDCG, HT = self.evaluate_valid(self.model_A, self.dataset_A, self.max_len_A, self.idxs_common_A)
+        result |= {f"NDCG_{name_A}_common_users": NDCG, f"HT_{name_A}_common_users": HT}
+        NDCG_B, HT_B = self.evaluate_valid(self.model_B, self.dataset_B, self.max_len_B, self.idxs_common_B)
+        result |= {f"NDCG_{name_B}_common_users": NDCG_B, f"HT_{name_B}_common_users": HT_B}
+
+        for key, value in result.items():
+            print(f"{key}: {value:.5f}")
+        return result
