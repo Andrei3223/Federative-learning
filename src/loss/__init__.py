@@ -1,0 +1,1 @@
+from src.loss.Wasserstein import calculate_2_wasserstein_dist

@@ -1,4 +1,5 @@
 from src.trainer import BaseTrainer
+from src.loss import calculate_2_wasserstein_dist
 
 from pathlib import Path
 import numpy as np
@@ -115,6 +116,7 @@ class FederativeTrainer(BaseTrainer):
         self.optimizer_A.zero_grad()
         self.optimizer_B.zero_grad()
     
+        loss_function = self.config_trainer.approx.get("loss_function", "Frobenius")
         for batch in self.common_loader:
 
             self.optimizer_frob.zero_grad()
@@ -126,12 +128,18 @@ class FederativeTrainer(BaseTrainer):
             emb_b = self.model_B.log2feats(seq_b)[..., -1]
 
             # print(emb_a.shape)
+            
 
-            frob_loss = torch.norm(emb_a - emb_b, p='fro')
-            frob_loss.backward()
+            if loss_function == "Frobenius":
+                approx_loss = torch.norm(emb_a - emb_b, p='fro')
+            elif loss_function == "Wasserstein":
+                approx_loss = calculate_2_wasserstein_dist(emb_a, emb_b, device=self.device)
+            else:
+                raise NameError(f"Loss sould be Frobenius or Wasserstein")
+            approx_loss.backward()
             self.optimizer_frob.step()
 
-            self.writer.log({f"frob_loss":  frob_loss.item()})
+            self.writer.log({f"loss_{loss_function}":  approx_loss.item()})
         
         if self.lr_scheduler_frob is not None:
             self.lr_scheduler_frob.step()
