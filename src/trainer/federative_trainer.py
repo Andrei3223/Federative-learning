@@ -116,26 +116,22 @@ class FederativeTrainer(BaseTrainer):
         self.optimizer_A.zero_grad()
         self.optimizer_B.zero_grad()
     
+        self.model_A.train()
+        self.model_B.train()
         loss_function = self.config_trainer.approx.get("loss_function", "Frobenius")
         for batch in self.common_loader:
-
             self.optimizer_frob.zero_grad()
-            self.model_A.train()
-            self.model_B.train()
             
             seq_a, seq_b = batch["seq_A"], batch["seq_B"]
             emb_a = self.model_A.log2feats(seq_a)[..., -1]  # for sasrec take only last embed
             emb_b = self.model_B.log2feats(seq_b)[..., -1]
-
-            # print(emb_a.shape)
-            
 
             if loss_function == "Frobenius":
                 approx_loss = torch.norm(emb_a - emb_b, p='fro')
             elif loss_function == "Wasserstein":
                 approx_loss = calculate_2_wasserstein_dist(emb_a, emb_b, device=self.device)
             else:
-                raise NameError(f"Loss sould be Frobenius or Wasserstein")
+                raise NameError(f"Loss should be Frobenius or Wasserstein")
             approx_loss.backward()
             self.optimizer_frob.step()
 
@@ -153,14 +149,14 @@ class FederativeTrainer(BaseTrainer):
     def train(self):
         name_A, name_B = self.cfg_trainer_A.dataset["name"], self.cfg_trainer_B.dataset["name"] 
         for epoch in tqdm(range(self.start_epoch, self.epochs)):
-            if epoch % self.config_trainer.get("embed_step_freq", 10) == 0:
-                self.approximate_epoch()
-
+            # if epoch % self.config_trainer.get("embed_step_freq", 1) == 0:
+            self.approximate_epoch()
             self.train_epoch(
                 self.cfg_trainer_A, self.model_A,
                 self.train_dataloader_A, self.optimizer_A,
                 self.lr_scheduler_A, name_A,
             )
+            self.approximate_epoch()
             self.train_epoch(
                 self.cfg_trainer_B, self.model_B,
                 self.train_dataloader_B, self.optimizer_B,
