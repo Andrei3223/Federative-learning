@@ -13,6 +13,7 @@ trainer:
   domain_A:
     max_len: 50
     batch_size: 512
+    # model_path: models/best/fed_movie_kindle_wasser_2approx_moviecheckpoint-epoch390.pth
     model_path: models/best/movies_checkpoint-epoch300.pth
     # model_path: models/best/fed_movie_kindle_order_moviecheckpoint-epoch390.pth
     dataset:
@@ -22,15 +23,16 @@ trainer:
   domain_B:
     max_len: 50
     batch_size: 512
-    # model_path: models/best/video_games_checkpoint-epoch300.pth
+    model_path: models/best/video_games_checkpoint-epoch300.pth
     # model_path: models/best/fed_movie_kindle_order_kindlecheckpoint-epoch390.pth
-    model_path: models/best/kindle_checkpoint-epoch200.pth
+    # model_path: models/best/fed_movie_kindle_wasser_2approx_video_gamescheckpoint-epoch390.pth
     dataset:
       min_hist_len: 4  # user has minimum k interactions, each item at least k times in dataset
-      # data_path: data/datasets_5/Video_Games_5.json
-      data_path: data/datasets_5/Kindle_Store_5.json
-      name: kindle
+      data_path: data/datasets_5/Video_Games_5.json
+      # data_path: data/datasets_5/Kindle_Store_5.json
+      name: video_games
   device: mps # device name ("cuda"/"cpu"/"mps") or "auto"
   federative: True
   n_epochs: -1
   common_data_bs: 256
+  num_neg: 500

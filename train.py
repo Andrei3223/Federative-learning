@@ -93,6 +93,7 @@ def main(config):
             data_proc.user_map, data_proc_B.user_map,
             config.trainer.domain_A.max_len, config.trainer.domain_B.max_len
         )
+        print(f"num common users: {len(federative_dataset)}")
         idxs_common_A, idxs_common_B = federative_dataset.idxs_A, federative_dataset.idxs_B 
         common_loader = torch.utils.data.DataLoader(
             federative_dataset, shuffle=True,

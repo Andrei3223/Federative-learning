@@ -114,7 +114,7 @@ class BaseTrainer():
 
 
     
-    def evaluate_valid(self, model, dataset, maxlen, idxs=None):
+    def evaluate_valid(self, model, dataset, maxlen, idxs=None, num_neg=100):
         """
         Evaluates a PyTorch recommendation model on validation data
         
@@ -163,7 +163,7 @@ class BaseTrainer():
             
             # Add positive item (from validation) with 100 negative samples
             item_idx = [valid[u][0]]  # check index
-            for _ in range(100):
+            for _ in range(num_neg):
                 t = np.random.randint(1, itemnum + 1)
                 while t in rated: 
                     t = np.random.randint(1, itemnum + 1)

@@ -19,8 +19,7 @@ class FederativeDataset():
     def __getitem__(self, idx):
         # [a, b, c, d] -> [a, b, c] - hist, [d] - trg
         # id1, id2 = self.common_list[idx][0], self.common_list[idx][2]
-        list_A, list_B = self.common_list[idx][1], self.common_list[idx][3],
-        
+        list_A, list_B = self.common_list[idx][1], self.common_list[idx][3],        
        
         seq_A = np.zeros([self.maxlen_A], dtype=np.int32)
         seq_B = np.zeros([self.maxlen_B], dtype=np.int32)
@@ -43,6 +42,8 @@ class FederativeDataset():
         return {
             'seq_A': torch.LongTensor(seq_A),
             'seq_B': torch.LongTensor(seq_B),
+            'input_len_a': torch.LongTensor([len(list_A)]),
+            'input_len_b': torch.LongTensor([len(list_B)]),
         }
 
     def merge_with_common_ids_comprehensive(self, dict1, dict2, user_map1, user_map2):

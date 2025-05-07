@@ -220,7 +220,8 @@ class AmazonDataset():
             'user': torch.LongTensor([user]),
             'seq': torch.LongTensor(seq),
             'pos': torch.LongTensor(pos),
-            'neg': torch.LongTensor(neg)
+            'neg': torch.LongTensor(neg),
+            'len_seq': torch.LongTensor([len(self.user_train[user])]),
         }
     
     def random_neq(self, l, r, s, size):

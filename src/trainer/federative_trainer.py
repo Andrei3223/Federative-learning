@@ -75,6 +75,8 @@ class FederativeTrainer(BaseTrainer):
         self.start_epoch = 1
         self.epochs = self.config_trainer.n_epochs
 
+        self.num_neg =  self.config_trainer.get("num_neg", 100)  # validation negitives
+
         # define checkpoint dir and init everything if required
         self.checkpoint_dir = Path(self.config.get("checkpoint_dir", "models"))
         if not os.path.exists(self.checkpoint_dir):
@@ -123,8 +125,15 @@ class FederativeTrainer(BaseTrainer):
             self.optimizer_frob.zero_grad()
             
             seq_a, seq_b = batch["seq_A"], batch["seq_B"]
-            emb_a = self.model_A.log2feats(seq_a)[..., -1]  # for sasrec take only last embed
-            emb_b = self.model_B.log2feats(seq_b)[..., -1]
+            
+            # emb_a = self.model_A.log2feats(seq_a)[..., -1]  # for sasrec take only last embed
+            # emb_b = self.model_B.log2feats(seq_b)[..., -1]
+            input_len_a, input_len_b = batch["input_len_a"], batch["input_len_b"]
+            out_a = self.model_A.log2feats(seq_a)
+            out_b = self.model_B.log2feats(seq_b)
+            
+            emb_a = self.get_out_embed(out_a, input_len_a)
+            emb_b = self.get_out_embed(out_b, input_len_b)
 
             if loss_function == "Frobenius":
                 approx_loss = torch.norm(emb_a - emb_b, p='fro')
@@ -145,6 +154,31 @@ class FederativeTrainer(BaseTrainer):
 
         self.optimizer_frob.zero_grad()
 
+    def get_out_embed(self, out_seq, input_len):
+        '''
+        Sum k output embeddings, if input size was k
+        out_seq: tensor[bs, seq_len, vec_len]
+        input_len: tensor[bs]
+        return: tensor[vec_len]
+        '''
+        bs, seq_len, vec_len = out_seq.shape
+
+        # Create mask
+        idxs = torch.arange(seq_len).unsqueeze(0)
+        mask = (idxs >= (seq_len - input_len)).int()  # shape (B, seq_len)
+        mask = mask.unsqueeze(-1).to(out_seq.device)  # shape (B, seq_len, 1)
+
+        # Apply mask
+        masked_data = out_seq * mask
+
+        # Avg
+        input_len[input_len == 0] = 1
+        divisor = torch.ones((bs, seq_len, 1), dtype=out_seq.dtype, device=out_seq.device)
+        divisor = divisor * mask * input_len.view(bs, 1, 1).to(out_seq.device)
+        divisor[divisor == 0] = 1
+        # print(f"{divisor.shape=}, {masked_data.shape=}, {mask.shape=}")
+
+        return (masked_data / divisor).sum(axis=1)
 
     def train(self):
         name_A, name_B = self.cfg_trainer_A.dataset["name"], self.cfg_trainer_B.dataset["name"] 
@@ -189,14 +223,14 @@ class FederativeTrainer(BaseTrainer):
         self.model_A.eval()
         self.model_B.eval()
         result = {}
-        NDCG, HT = self.evaluate_valid(self.model_A, self.dataset_A, self.max_len_A)
+        NDCG, HT = self.evaluate_valid(self.model_A, self.dataset_A, self.max_len_A, num_neg=self.num_neg)
         result |= {f"NDCG_{name_A}": NDCG, f"HT_{name_A}": HT}
-        NDCG_B, HT_B = self.evaluate_valid(self.model_B, self.dataset_B, self.max_len_B)
+        NDCG_B, HT_B = self.evaluate_valid(self.model_B, self.dataset_B, self.max_len_B, num_neg=self.num_neg)
         result |= {f"NDCG_{name_B}": NDCG_B, f"HT_{name_B}": HT_B}
 
-        NDCG, HT = self.evaluate_valid(self.model_A, self.dataset_A, self.max_len_A, self.idxs_common_A)
+        NDCG, HT = self.evaluate_valid(self.model_A, self.dataset_A, self.max_len_A, self.idxs_common_A, num_neg=self.num_neg)
         result |= {f"NDCG_{name_A}_common_users": NDCG, f"HT_{name_A}_common_users": HT}
-        NDCG_B, HT_B = self.evaluate_valid(self.model_B, self.dataset_B, self.max_len_B, self.idxs_common_B)
+        NDCG_B, HT_B = self.evaluate_valid(self.model_B, self.dataset_B, self.max_len_B, self.idxs_common_B, num_neg=self.num_neg)
         result |= {f"NDCG_{name_B}_common_users": NDCG_B, f"HT_{name_B}_common_users": HT_B}
 
         for key, value in result.items():
