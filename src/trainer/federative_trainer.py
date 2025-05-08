@@ -114,7 +114,7 @@ class FederativeTrainer(BaseTrainer):
 
         optimizer.zero_grad()
     
-    def approximate_epoch(self):
+    def approximate_epoch(self, emb_type="last_embed"):
         self.optimizer_A.zero_grad()
         self.optimizer_B.zero_grad()
     
@@ -125,15 +125,30 @@ class FederativeTrainer(BaseTrainer):
             self.optimizer_frob.zero_grad()
             
             seq_a, seq_b = batch["seq_A"], batch["seq_B"]
-            
-            # emb_a = self.model_A.log2feats(seq_a)[..., -1]  # for sasrec take only last embed
-            # emb_b = self.model_B.log2feats(seq_b)[..., -1]
             input_len_a, input_len_b = batch["input_len_a"], batch["input_len_b"]
-            out_a = self.model_A.log2feats(seq_a)
-            out_b = self.model_B.log2feats(seq_b)
             
-            emb_a = self.get_out_embed(out_a, input_len_a)
-            emb_b = self.get_out_embed(out_b, input_len_b)
+            if emb_type == "last_embed":
+                # for sasrec take only last embed from sequence
+                emb_a = self.model_A.log2feats(seq_a)[..., -1]
+                emb_b = self.model_B.log2feats(seq_b)[..., -1]
+            elif emb_type == "out_avg":
+                # avg of k output embeddings, for input of size k
+                out_a = self.model_A.log2feats(seq_a)
+                out_b = self.model_B.log2feats(seq_b)
+                emb_a = self.get_out_embed(out_a, input_len_a)
+                emb_b = self.get_out_embed(out_b, input_len_b)
+            elif emb_type == "input_avg":
+                # avg of k input embeddings, for input of size k
+                inp_emb_a = self.model_A.item_emb(torch.LongTensor(seq_a).to(self.device))
+                inp_emb_b = self.model_B.item_emb(torch.LongTensor(seq_b).to(self.device))
+                emb_a = self.get_out_embed(inp_emb_a, input_len_a)
+                emb_b = self.get_out_embed(inp_emb_b, input_len_b)
+            elif emb_type == "pre_last_layer_last_embed":
+                # take only last embed from num_layer-1 output sequence 
+                out_a = self.model_A.log2feats(seq_a, get_prev_layer_ouput=True)
+                out_b = self.model_B.log2feats(seq_b, get_prev_layer_ouput=True)
+                emb_a = self.get_out_embed(out_a, input_len_a)
+                emb_b = self.get_out_embed(out_b, input_len_b)
 
             if loss_function == "Frobenius":
                 approx_loss = torch.norm(emb_a - emb_b, p='fro')
@@ -144,7 +159,7 @@ class FederativeTrainer(BaseTrainer):
             approx_loss.backward()
             self.optimizer_frob.step()
 
-            self.writer.log({f"loss_{loss_function}":  approx_loss.item()})
+            self.writer.log({f"loss_{loss_function}_{emb_type}":  approx_loss.item()})
         
         if self.lr_scheduler_frob is not None:
             self.lr_scheduler_frob.step()
@@ -184,6 +199,12 @@ class FederativeTrainer(BaseTrainer):
         name_A, name_B = self.cfg_trainer_A.dataset["name"], self.cfg_trainer_B.dataset["name"] 
         for epoch in tqdm(range(self.start_epoch, self.epochs)):
             # if epoch % self.config_trainer.get("embed_step_freq", 1) == 0:
+            if self.config_trainer.approx.get("multistep", False):
+                self.approximate_epoch(emb_type="input_avg")
+                self.approximate_epoch(emb_type="pre_last_layer_last_embed")
+                self.approximate_epoch(emb_type="out_avg")
+            else:
+                self.approximate_epoch(emb_type="out_avg")
             self.train_epoch(
                 self.cfg_trainer_A, self.model_A,
                 self.train_dataloader_A, self.optimizer_A,
@@ -194,7 +215,7 @@ class FederativeTrainer(BaseTrainer):
                 self.train_dataloader_B, self.optimizer_B,
                 self.lr_scheduler_B, name_B,
             )
-            self.approximate_epoch()
+            
 
             if epoch % self.config_trainer.get("val_freq", 10) == 0:
                 self.model_A.eval()

@@ -57,7 +57,7 @@ class SASRec(torch.nn.Module):
             # self.pos_sigmoid = torch.nn.Sigmoid()
             # self.neg_sigmoid = torch.nn.Sigmoid()
 
-    def log2feats(self, log_seqs):
+    def log2feats(self, log_seqs, get_prev_layer_ouput=False):
         # get the item embedding
         # seqs.shape = [batch_size, 1]
         # print(log_seqs)
@@ -79,7 +79,8 @@ class SASRec(torch.nn.Module):
         attention_mask = ~torch.tril(torch.ones((tl, tl), dtype=torch.bool, device=self.dev))
         # casual masking
         # input the sequence to attention layers
-        for i in range(len(self.attention_layers)):
+        num_layers = len(self.attention_layers) if not get_prev_layer_ouput else len(self.attention_layers) - 1
+        for i in range(num_layers):
             seqs = torch.transpose(seqs, 0, 1)
             Q = self.attention_layernorms[i](seqs)
             mha_outputs, _ = self.attention_layers[i](Q, seqs, seqs,
