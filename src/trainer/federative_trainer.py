@@ -146,10 +146,10 @@ class FederativeTrainer(BaseTrainer):
                 emb_b = self.get_out_embed(inp_emb_b, input_len_b)
             elif emb_type == "pre_last_layer_last_embed":
                 # take only last embed from num_layer-1 output sequence 
-                out_a = self.model_A.log2feats(seq_a, get_prev_layer_ouput=True)
-                out_b = self.model_B.log2feats(seq_b, get_prev_layer_ouput=True)
-                emb_a = self.get_out_embed(out_a, input_len_a)
-                emb_b = self.get_out_embed(out_b, input_len_b)
+                emb_a = self.model_A.log2feats(seq_a, get_prev_layer_ouput=True)[..., -1]
+                emb_b = self.model_B.log2feats(seq_b, get_prev_layer_ouput=True)[..., -1]
+                # emb_a = self.get_out_embed(out_a, input_len_a)
+                # emb_b = self.get_out_embed(out_b, input_len_b)
 
             if loss_function == "Frobenius":
                 approx_loss = torch.norm(emb_a - emb_b, p='fro')
@@ -244,15 +244,15 @@ class FederativeTrainer(BaseTrainer):
         self.model_A.eval()
         self.model_B.eval()
         result = {}
-        # NDCG, HT = self.evaluate_valid(self.model_A, self.dataset_A, self.max_len_A, num_neg=self.num_neg)
-        # result |= {f"NDCG_{name_A}": NDCG, f"HT_{name_A}": HT}
-        # NDCG_B, HT_B = self.evaluate_valid(self.model_B, self.dataset_B, self.max_len_B, num_neg=self.num_neg)
-        # result |= {f"NDCG_{name_B}": NDCG_B, f"HT_{name_B}": HT_B}
+        NDCG, HT = self.evaluate_valid(self.model_A, self.dataset_A, self.max_len_A, num_neg=self.num_neg)
+        result |= {f"NDCG_{name_A}": NDCG, f"HT_{name_A}": HT}
+        NDCG_B, HT_B = self.evaluate_valid(self.model_B, self.dataset_B, self.max_len_B, num_neg=self.num_neg)
+        result |= {f"NDCG_{name_B}": NDCG_B, f"HT_{name_B}": HT_B}
 
-        # NDCG, HT = self.evaluate_valid(self.model_A, self.dataset_A, self.max_len_A, self.idxs_common_A, num_neg=self.num_neg)
-        # result |= {f"NDCG_{name_A}_common_users": NDCG, f"HT_{name_A}_common_users": HT}
-        # NDCG_B, HT_B = self.evaluate_valid(self.model_B, self.dataset_B, self.max_len_B, self.idxs_common_B, num_neg=self.num_neg)
-        # result |= {f"NDCG_{name_B}_common_users": NDCG_B, f"HT_{name_B}_common_users": HT_B}
+        NDCG, HT = self.evaluate_valid(self.model_A, self.dataset_A, self.max_len_A, self.idxs_common_A, num_neg=self.num_neg)
+        result |= {f"NDCG_{name_A}_common_users": NDCG, f"HT_{name_A}_common_users": HT}
+        NDCG_B, HT_B = self.evaluate_valid(self.model_B, self.dataset_B, self.max_len_B, self.idxs_common_B, num_neg=self.num_neg)
+        result |= {f"NDCG_{name_B}_common_users": NDCG_B, f"HT_{name_B}_common_users": HT_B}
 
         if dataset_common:
             NDCG_A2B_cold, HT_A2B_cold = self.evaluate_cold(

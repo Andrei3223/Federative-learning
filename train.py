@@ -35,7 +35,109 @@ def main(config):
         device = config.trainer.device
 
     # prepare data for basic or federative experiment
-    if config.trainer.get("federative", False):
+    if config.trainer.get("federative", False) and config.trainer.get("only_common_users", False):
+        # A
+        data_proc = DataProcessor(
+            config.trainer.domain_A.dataset["data_path"], "",
+            min_hist_len=config.trainer.domain_A.dataset["min_hist_len"],
+            use_file=False,
+        )
+        user_train, user_valid, user_test, usernum, itemnum = data_proc.preprocess_dataset(
+            "data/preprocessed",
+            config.trainer.domain_A.dataset["name"]
+        )
+        # B
+        data_proc_B = DataProcessor(
+            config.trainer.domain_B.dataset["data_path"], "",
+            min_hist_len=config.trainer.domain_B.dataset["min_hist_len"],
+            use_file=False,
+        )
+        user_train_B, user_valid_B, user_test_B, usernum_B, itemnum_B = data_proc_B.preprocess_dataset(
+            "data/preprocessed",
+           config.trainer.domain_B.dataset["name"],
+        )
+        # common
+        federative_dataset = FederativeDataset(
+            user_train, user_train_B,
+            data_proc.user_map, data_proc_B.user_map,
+            config.trainer.domain_A.max_len, config.trainer.domain_B.max_len
+        )
+        print(f"num common users: {len(federative_dataset)}")
+        idxs_common_A, idxs_common_B = federative_dataset.idxs_A, federative_dataset.idxs_B 
+        common_loader = torch.utils.data.DataLoader(
+            federative_dataset, shuffle=True,
+            batch_size=config.trainer.common_data_bs, num_workers=2, pin_memory=True
+        )
+
+        # datasets with common users only 
+        # A
+        user_train, user_valid, user_test, usernum, itemnum = data_proc.preprocess_dataset(
+            "data/preprocessed",
+            config.trainer.domain_A.dataset["name"],
+            user_idxs=federative_dataset.common_ids,
+        )
+        dataset = AmazonDataset(user_train, usernum, itemnum, 50)
+        train_loader = torch.utils.data.DataLoader(
+            dataset, shuffle=True,
+            batch_size=config.trainer.domain_A.batch_size, num_workers=2, pin_memory=True
+        )
+        OmegaConf.set_struct(config, False)  
+        config.model.user_num = usernum
+        config.model.item_num = itemnum
+        model = instantiate(config.model).to(device)
+
+        trainable_params = filter(lambda p: p.requires_grad, model.parameters())
+        optimizer = instantiate(config.trainer.domain_A.optimizer, params=trainable_params)
+        lr_scheduler = instantiate(config.trainer.domain_A.lr_scheduler, optimizer=optimizer)
+
+        # B
+        user_train_B, user_valid_B, user_test_B, usernum_B, itemnum_B = data_proc_B.preprocess_dataset(
+            "data/preprocessed",
+           config.trainer.domain_B.dataset["name"],
+           user_idxs=federative_dataset.common_ids,
+        )
+        dataset_B = AmazonDataset(user_train_B, usernum_B, itemnum_B, 50)
+        train_loader_B = torch.utils.data.DataLoader(
+            dataset_B, shuffle=True,
+            batch_size=config.trainer.domain_B.batch_size, num_workers=2, pin_memory=True
+        )
+        OmegaConf.set_struct(config, False)  
+        config.model.user_num = usernum_B
+        config.model.item_num = itemnum_B
+
+        model_B = instantiate(config.model).to(device)
+        filtered_state_dict = {k: v for k, v in model.state_dict().items() if 'item_emb' not in k}
+        model_B.load_state_dict(filtered_state_dict, strict=False)
+
+        trainable_params_B = filter(lambda p: p.requires_grad, model_B.parameters())
+        optimizer_B = instantiate(config.trainer.domain_B.optimizer, params=trainable_params_B)
+        lr_scheduler_B = instantiate(config.trainer.domain_B.lr_scheduler, optimizer=optimizer_B)
+
+        # common
+        federative_dataset = FederativeDataset(
+            user_train, user_train_B,
+            data_proc.user_map, data_proc_B.user_map,
+            config.trainer.domain_A.max_len, config.trainer.domain_B.max_len
+        )
+        print(f"num common users: {len(federative_dataset)}")
+        idxs_common_A, idxs_common_B = federative_dataset.idxs_A, federative_dataset.idxs_B 
+        common_loader = torch.utils.data.DataLoader(
+            federative_dataset, shuffle=True,
+            batch_size=config.trainer.common_data_bs, num_workers=2, pin_memory=True
+        )
+
+        trainable_params_common = [
+            {'params': trainable_params},
+            {'params': trainable_params_B}
+        ]
+        optimizer_constructor = instantiate(
+            config.trainer.approx.optimizer,
+            _partial_=True
+        )
+        optimizer_frob = optimizer_constructor(trainable_params_common)
+        lr_scheduler_frob = instantiate(config.trainer.approx.lr_scheduler, optimizer=optimizer_frob)
+
+    elif config.trainer.get("federative", False):
         # A
         data_proc = DataProcessor(
             config.trainer.domain_A.dataset["data_path"], "",

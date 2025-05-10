@@ -41,7 +41,7 @@ class DataProcessor():
             for line in file:
                 yield json.loads(line)
 
-    def preprocess_dataset(self, out_dir: str, out_name: str):
+    def preprocess_dataset(self, out_dir: str, out_name: str, user_idxs: Optional[set[int]] = None):
         '''
         parse dataset, get users and item min_hist_len history, put in the file
         '''
@@ -88,7 +88,10 @@ class DataProcessor():
             
             if countU[rev] < self.min_hist_len or countP[asin] < self.min_hist_len:
                 continue
-                
+
+            if user_idxs and rev not in user_idxs:  # example: use to train only on common users 
+                continue
+
             if rev in usermap:
                 userid = usermap[rev]
             else:
@@ -180,6 +183,9 @@ class DataProcessor():
 
 class AmazonDataset():
     def __init__(self, user_train, usernum, itemnum, maxlen):
+        '''
+        For SASRec
+        '''
         self.user_train = user_train
         self.usernum = usernum
         self.itemnum = itemnum
