@@ -6,7 +6,8 @@ import numpy as np
 import torch
 from tqdm import tqdm
 import os
-
+import random
+import copy
 
 
 class FederativeTrainer(BaseTrainer):
@@ -238,21 +239,133 @@ class FederativeTrainer(BaseTrainer):
             
             self.writer.log({}, commit=True)
     
-    def inference(self):
+    def inference(self, dataset_common=None):
         name_A, name_B = self.cfg_trainer_A.dataset["name"], self.cfg_trainer_B.dataset["name"]
         self.model_A.eval()
         self.model_B.eval()
         result = {}
-        NDCG, HT = self.evaluate_valid(self.model_A, self.dataset_A, self.max_len_A, num_neg=self.num_neg)
-        result |= {f"NDCG_{name_A}": NDCG, f"HT_{name_A}": HT}
-        NDCG_B, HT_B = self.evaluate_valid(self.model_B, self.dataset_B, self.max_len_B, num_neg=self.num_neg)
-        result |= {f"NDCG_{name_B}": NDCG_B, f"HT_{name_B}": HT_B}
+        # NDCG, HT = self.evaluate_valid(self.model_A, self.dataset_A, self.max_len_A, num_neg=self.num_neg)
+        # result |= {f"NDCG_{name_A}": NDCG, f"HT_{name_A}": HT}
+        # NDCG_B, HT_B = self.evaluate_valid(self.model_B, self.dataset_B, self.max_len_B, num_neg=self.num_neg)
+        # result |= {f"NDCG_{name_B}": NDCG_B, f"HT_{name_B}": HT_B}
 
-        NDCG, HT = self.evaluate_valid(self.model_A, self.dataset_A, self.max_len_A, self.idxs_common_A, num_neg=self.num_neg)
-        result |= {f"NDCG_{name_A}_common_users": NDCG, f"HT_{name_A}_common_users": HT}
-        NDCG_B, HT_B = self.evaluate_valid(self.model_B, self.dataset_B, self.max_len_B, self.idxs_common_B, num_neg=self.num_neg)
-        result |= {f"NDCG_{name_B}_common_users": NDCG_B, f"HT_{name_B}_common_users": HT_B}
+        # NDCG, HT = self.evaluate_valid(self.model_A, self.dataset_A, self.max_len_A, self.idxs_common_A, num_neg=self.num_neg)
+        # result |= {f"NDCG_{name_A}_common_users": NDCG, f"HT_{name_A}_common_users": HT}
+        # NDCG_B, HT_B = self.evaluate_valid(self.model_B, self.dataset_B, self.max_len_B, self.idxs_common_B, num_neg=self.num_neg)
+        # result |= {f"NDCG_{name_B}_common_users": NDCG_B, f"HT_{name_B}_common_users": HT_B}
+
+        if dataset_common:
+            NDCG_A2B_cold, HT_A2B_cold = self.evaluate_cold(
+                model_initial=self.model_A,
+                model_cold_domain=self.model_B,
+                dataset_common=dataset_common,
+                dataset_other_domain=self.dataset_B,
+                maxlen=self.max_len_A,
+                num_neg=self.num_neg,
+                cold_domain_first=0,
+                test_param=False,
+            )
+            NDCG_B2A_cold, HT_B2A_cold = self.evaluate_cold(
+                model_initial=self.model_B,
+                model_cold_domain=self.model_A,
+                dataset_common=dataset_common,
+                dataset_other_domain=self.dataset_A,
+                maxlen=self.max_len_B,
+                num_neg=self.num_neg,
+                cold_domain_first=1,
+                test_param=False,
+            )
+            result |= {f"NDCG_{name_B}_cold": NDCG_A2B_cold, f"HT_{name_B}_cold": HT_A2B_cold}
+            result |= {f"NDCG_{name_A}_cold": NDCG_B2A_cold, f"HT_{name_A}_cold": HT_B2A_cold}
 
         for key, value in result.items():
             print(f"{key}: {value:.5f}")
         return result
+
+
+    def evaluate_cold(
+            self,
+            model_initial,
+            model_cold_domain,
+            dataset_common,
+            dataset_other_domain,
+            maxlen,
+            num_neg=100,
+            cold_domain_first=0,  # 0 or 1
+            test_param=False,
+        ):
+        """
+        Args:
+            model: model from domain with interactions
+            dataset_common: Federarive dataset 
+            dataset_other_domain: Dataset containing train, valid, test sets and user/item counts
+            maxlen: maxlen from domain with interactions
+            num_neg: number of negative in sampled metrixs
+            cold_domain_first: 1 if cold domain is second in dataset_common, 0 - first
+            test_param: True - test, False - validation
+        
+        Returns:
+            NDCG@10 and HR@10 metrics on cold users
+        """
+        model_initial.eval()
+        model_cold_domain.eval()
+
+        [train_other, valid_other, test_other, usernum_other, itemnum_other] = copy.deepcopy(dataset_other_domain)
+        if test_param:
+            valid_other = test_other
+
+        NDCG = 0.0
+        valid_user = 0.0
+        HT = 0.0
+
+        for u, sample in enumerate(dataset_common.common_list):
+            train_initial = sample[1 + 2 * cold_domain_first]
+            idx_in_cold_dataset = sample[2 - 2 * cold_domain_first]
+            if len(train_initial) < 1 or len(valid_other[idx_in_cold_dataset]) < 1: 
+                continue
+            # Create sequence from user history
+            seq = np.zeros(maxlen, dtype=np.int64)
+            idx = maxlen - 1
+            for i in reversed(train_initial):
+                seq[idx] = i
+                idx -= 1
+                if idx == -1: 
+                    break
+
+            # Create set of items user has already interacted with
+            rated = set(train_initial)
+            rated.add(0)
+            
+            # Add positive item (from validation) with 100 negative samples
+            item_idx = [valid_other[idx_in_cold_dataset][0]]
+            for _ in range(num_neg):
+                t = np.random.randint(1, itemnum_other + 1)
+                while t in rated: 
+                    t = np.random.randint(1, itemnum_other + 1)
+                item_idx.append(t)
+
+            
+            # Get model predictions
+            with torch.no_grad():
+                item_embs = model_cold_domain.item_emb(torch.LongTensor(item_idx).to(self.device))  # get item embeds from cold domen
+                predictions = -model_initial.predict_other_model_items(np.array([seq]), item_embs)
+                # print(predictions.shape)
+                predictions = predictions[0]
+
+                rank = predictions.argsort().argsort()[0].item()
+
+            valid_user += 1
+
+            # Calculate metrics
+            if rank < 10:
+                NDCG += 1 / np.log2(rank + 2)
+                HT += 1
+
+        # Compute final metrics
+        if valid_user > 0:
+            NDCG = NDCG / valid_user
+            HT = HT / valid_user
+        else:
+            NDCG = 0
+            HT = 0
+        return NDCG, HT

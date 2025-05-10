@@ -114,7 +114,14 @@ class BaseTrainer():
 
 
     
-    def evaluate_valid(self, model, dataset, maxlen, idxs=None, num_neg=100):
+    def evaluate_valid(
+            self,
+            model, dataset, maxlen,
+            idxs=None,
+            num_neg=100,
+            test_param=False, # True - test, False - validation
+            dataset_other_domain=None,  # use to get cold user metrics
+        ):
         """
         Evaluates a PyTorch recommendation model on validation data
         
@@ -127,10 +134,11 @@ class BaseTrainer():
         Returns:
             NDCG@10 and HR@10 metrics
         """
-        print("evaluating")
         model.eval()
-        
+
         [train, valid, test, usernum, itemnum] = copy.deepcopy(dataset)
+        if test_param:
+            valid = test
 
         NDCG = 0.0
         valid_user = 0.0

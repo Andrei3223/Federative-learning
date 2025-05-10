@@ -125,6 +125,13 @@ class SASRec(torch.nn.Module):
         # preds = self.pos_sigmoid(logits) # rank same item list for different users
 
         return logits  # preds # (U, I)
+
+    def predict_other_model_items(self, log_seqs, item_embs):
+        # to evaluate cold users' metrics
+        log_feats = self.log2feats(log_seqs)
+        final_feat = log_feats[:, -1, :]  # only use last QKV classifier
+        logits = item_embs.matmul(final_feat.unsqueeze(-1)).squeeze(-1)
+        return logits  # preds # (U, I)
     
     def __str__(self):
         """

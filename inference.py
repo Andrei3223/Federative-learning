@@ -145,7 +145,7 @@ def main(config):
 
         )
 
-    trainer.inference()
+    trainer.inference(dataset_common=federative_dataset)
 
 
 if __name__ == "__main__":
