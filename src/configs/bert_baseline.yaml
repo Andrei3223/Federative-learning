@@ -1,13 +1,12 @@
 model:
   _target_: src.models.SASRec
   args:
-    hidden_units: 50
-    num_blocks: 2
-    num_heads: 1
-    dropout_rate: 0.5
-    maxlen: 50
-    l2_emb: 0.0
-    device: mps
+    bert_max_len: 10
+    num_items: 10
+    bert_num_blocks: 6
+    bert_hidden_units: 8
+    bert_dropout: 0.4
+    device: cuda
 
 trainer:
   max_len: 50
@@ -17,7 +16,7 @@ trainer:
   weight_decay: 0.0001
   val_freq: 15
   save_freq: 30
-  device: mps # device name or "auto"
+  device: cuda # device name or "auto"
 optimizer:
   _target_: torch.optim.AdamW
   lr: 1e-3
@@ -48,5 +47,5 @@ wandb:
   project: "federative_learning"
   log_checkpoints: True
   entity: null
-  run_name: ${dataset.name}
+  run_name: "bert_video"
   mode: "online"

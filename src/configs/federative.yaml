@@ -25,8 +25,8 @@ trainer:
       gamma: 0.95
     dataset:
       min_hist_len: 4  # user has minimum k interactions, each item at least k times in dataset
-      data_path: data/datasets_5/Clothing_Shoes_and_Jewelry_5.json
-      name: cloth
+      data_path: data/datasets_5/Video_Games_5.json
+      name: video_games
   
   domain_B:
     max_len: 50
@@ -43,8 +43,8 @@ trainer:
       gamma: 0.95
     dataset:
       min_hist_len: 4  # user has minimum k interactions, each item at least k times in dataset
-      data_path: data/datasets_5/Sports_and_Outdoors_5.json
-      name: sport
+      data_path: data/datasets_5/Movies_and_TV_5.json
+      name: movies
   approx:
     optimizer:
       _target_: torch.optim.SGD
