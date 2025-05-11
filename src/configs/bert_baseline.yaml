@@ -1,22 +1,22 @@
 model:
-  _target_: src.models.SASRec
-  args:
-    bert_max_len: 10
-    num_items: 10
-    bert_num_blocks: 6
-    bert_hidden_units: 8
-    bert_dropout: 0.4
-    device: cuda
+  _target_: src.models.BERT
+  bert_max_len: 50
+  bert_num_blocks: 2
+  bert_num_heads: 2
+  bert_hidden_units: 256
+  bert_dropout: 0.4
+  device: mps
 
 trainer:
+  _target_: src.trainer.BERTTrainer
   max_len: 50
-  batch_size: 512
-  n_epochs: 301
+  batch_size: 256
+  n_epochs: 31
   l2_emb: 5e-5
   weight_decay: 0.0001
-  val_freq: 15
+  val_freq: 1
   save_freq: 30
-  device: cuda # device name or "auto"
+  device: mps # device name or "auto"
 optimizer:
   _target_: torch.optim.AdamW
   lr: 1e-3
@@ -24,15 +24,13 @@ lr_scheduler:
   _target_: torch.optim.lr_scheduler.StepLR
   step_size: 10
   gamma: 0.95
-  # _target_: torch.optim.lr_scheduler.OneCycleLR
-  # max_lr: 7e-4
-  # pct_start: 0.1
-  # steps_per_epoch: ${trainer.epoch_len}
-  # epochs: ${trainer.n_epochs}
-  # anneal_strategy: cos
 loss_function:
-  _target_: torch.nn.BCEWithLogitsLoss
+  _target_: torch.nn.CrossEntropyLoss
+  ignore_index: 0
 dataset:
+  _target_: src.datasets.BERT4RecDataSet
+  maxlen: 50
+  mask_prob: 0.15
   min_hist_len: 4  # user has minimum k interactions, each item at least k times in dataset
   # data_path: data/datasets_5/Movies_and_TV_5.json
   data_path: /kaggle/working/Video_Games_5.json
@@ -41,10 +39,8 @@ dataset:
   # name: kindle
   # data_path: data/datasets_5/Office_Products_5.json
   # name: office
-# self.config["trainer"]["max_grad_norm"]
-
 wandb:
-  project: "federative_learning"
+  project: "federative_learning_bert"
   log_checkpoints: True
   entity: null
   run_name: "bert_video"

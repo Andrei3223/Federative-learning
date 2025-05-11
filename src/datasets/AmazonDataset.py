@@ -182,7 +182,7 @@ class DataProcessor():
 
 
 class AmazonDataset():
-    def __init__(self, user_train, usernum, itemnum, maxlen):
+    def __init__(self, user_train, usernum, itemnum, maxlen, **kwargs):
         '''
         For SASRec
         '''

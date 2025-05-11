@@ -2,6 +2,7 @@ import numpy as np
 import torch
 from torch import nn
 import math
+import torch.nn.functional as F
 
 
 # Havily based on https://github.com/jaywonchung/BERT4Rec-VAE-Pytorch

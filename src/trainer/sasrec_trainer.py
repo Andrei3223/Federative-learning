@@ -11,7 +11,7 @@ import os
 
 class BaseTrainer():
     """
-    Base class for all trainers.
+    Base SASRec trainer.
     """
 
     def __init__(
@@ -20,14 +20,14 @@ class BaseTrainer():
         criterion,
         optimizer,
         lr_scheduler,
-        config,
+        config_json,
         device,
         dataloaders,
         dataset,  #  = [train, valid, test, usernum, itemnum]
         writer,
         **kwargs,
     ):
-        self.config = config
+        self.config = config_json
         self.cfg_trainer = self.config["trainer"]
         self.max_len = self.cfg_trainer["max_len"]
 
@@ -111,16 +111,14 @@ class BaseTrainer():
             
             if epoch % self.cfg_trainer.get("save_freq", 20) == 0:
                 self._save_checkpoint(epoch=epoch)
-
-
     
     def evaluate_valid(
             self,
             model, dataset, maxlen,
             idxs=None,
             num_neg=100,
-            test_param=False, # True - test, False - validation
-            dataset_other_domain=None,  # use to get cold user metrics
+            test_param=False,
+            bert_evaluation=False,
         ):
         """
         Evaluates a PyTorch recommendation model on validation data
@@ -130,6 +128,8 @@ class BaseTrainer():
             dataset: Dataset containing train, valid, test sets and user/item counts
             maxlen: maxlen
             idxs: indexes of users to evaluate
+            test_param: True - test, False - validation
+            bert_evaluation: use to evaluate bert
         
         Returns:
             NDCG@10 and HR@10 metrics
@@ -151,44 +151,49 @@ class BaseTrainer():
             users = random.sample(range(1, usernum + 1), 10000)
         else:
             users = range(1, usernum + 1)
+
+        _all_items = set([i for i in range(1, itemnum + 1)])  # for neg sampling
         
         for u in tqdm(users, desc="Evaluating"):
             if len(train[u]) < 1 or len(valid[u]) < 1: 
                 continue
 
-            # Create sequence from user history
-            seq = np.zeros(maxlen, dtype=np.int64)
-            idx = maxlen - 1
-            for i in reversed(train[u]):
-                seq[idx] = i
-                idx -= 1
-                if idx == -1: 
-                    break
-
-            # Create set of items user has already interacted with
-            rated = set(train[u])
-            rated.add(0)
-            
-            # Add positive item (from validation) with 100 negative samples
-            item_idx = [valid[u][0]]  # check index
-            for _ in range(num_neg):
-                t = np.random.randint(1, itemnum + 1)
-                while t in rated: 
+            if not bert_evaluation:
+                # Create sequence from user history
+                seq = np.zeros(maxlen, dtype=np.int64)
+                idx = maxlen - 1
+                for i in reversed(train[u]):
+                    seq[idx] = i
+                    idx -= 1
+                    if idx == -1: 
+                        break
+                # Create set of items user has already interacted with
+                rated = set(train[u])
+                rated.add(0)
+                # Add positive item (from validation) with num_neg negative samples
+                item_idx = [valid[u][0]]  # check index
+                for _ in range(num_neg):
                     t = np.random.randint(1, itemnum + 1)
-                item_idx.append(t)
-
-            # print(len(item_idx))
-            # seq_tensor = torch.LongTensor([seq]).to(self.device)
-            # item_tensor = torch.LongTensor(item_idx).to(self.device)
+                    while t in rated: 
+                        t = np.random.randint(1, itemnum + 1)
+                    item_idx.append(t)
+            else:
+                seq = (train[u] + [itemnum + 1])[-maxlen:] # mask last token
+                padding_len = maxlen - len(seq)
+                seq = [0] * padding_len + seq
+                rated = train[u] + valid[u]
+                items = valid[u] + random.sample(list(_all_items - set(rated)), num_neg)
             
             # Get model predictions
             with torch.no_grad():
-                # predictions = model.predict(u, seq_tensor, item_idx)
-                # predictions = model.predict(u, seq, item_idx)
-                predictions = -model.predict(*[np.array(l) for l in [[u], [seq],item_idx]])
-
-                # print(predictions.shape)
-                predictions = predictions[0]
+                if bert_evaluation:
+                    seq = torch.LongTensor([seq]).to(self.device)
+                    predictions = -model(seq)
+                    predictions = predictions[0][-1][items] # sampling
+                    rank = predictions.argsort().argsort()[0].item()
+                else:
+                    predictions = -model.predict(*[np.array(l) for l in [[u], [seq],item_idx]])
+                    predictions = predictions[0]
 
                 rank = predictions.argsort().argsort()[0].item()
 

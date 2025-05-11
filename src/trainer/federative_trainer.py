@@ -27,7 +27,7 @@ class FederativeTrainer(BaseTrainer):
         lr_scheduler_B,
         dataset_B,  #  = [train, valid, test, usernum, itemnum]
 
-        config,
+        config_json,
         criterion,
         dataloaders,
 
@@ -41,7 +41,7 @@ class FederativeTrainer(BaseTrainer):
         idxs_common_B=None,
         **kwargs,
     ):
-        self.config = config
+        self.config = config_json
         self.config_trainer = self.config["trainer"]
         self.cfg_trainer_A = self.config["trainer"]["domain_A"]
         self.cfg_trainer_B = self.config["trainer"]["domain_B"]

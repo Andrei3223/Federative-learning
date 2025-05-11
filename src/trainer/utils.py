@@ -1,13 +1,15 @@
 import torch
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
-from src.trainer import BaseTrainer, FederativeTrainer
 from src.datasets import DataProcessor
-from src.datasets import AmazonDataset, FederativeDataset
+from src.datasets import (
+    FederativeDataset,
+)
 
 
 def setup_basic_training(config, device):
     """Set up training environment for basic (non-federative) training."""
+    OmegaConf.set_struct(config, False)
     # Process dataset
     data_proc = DataProcessor(
         config.dataset["data_path"], "",
@@ -17,14 +19,18 @@ def setup_basic_training(config, device):
         "data/preprocessed",
         config.dataset["name"]
     )
-    dataset = AmazonDataset(user_train, usernum, itemnum, 50)
+    dataset = instantiate(
+        config.dataset, 
+        user_train=user_train,
+        usernum=usernum, 
+        itemnum=itemnum,
+    )
     train_loader = torch.utils.data.DataLoader(
         dataset, shuffle=True,
         batch_size=config.trainer.batch_size, num_workers=2, pin_memory=True
     )
 
-    # Build model
-    OmegaConf.set_struct(config, False)  
+    # Build model 
     config.model.user_num = usernum
     config.model.item_num = itemnum
     model = instantiate(config.model).to(device)
@@ -38,17 +44,21 @@ def setup_basic_training(config, device):
     loss_function = instantiate(config.loss_function).to(device)
 
     # Create trainer
-    trainer = BaseTrainer(
+    trainer_partial = instantiate(
+        config.trainer,
+        _partial_=True  # This tells Hydra not to instantiate the object yet
+    )
+    trainer = trainer_partial(
         model=model,
         criterion=loss_function,
         optimizer=optimizer,
         lr_scheduler=lr_scheduler,
-        config=config,
+        config_json=config,
         device=device,
         dataloaders={"train": train_loader},
         dataset=[user_train, user_valid, user_test, usernum, itemnum],
         train_dataset=dataset,
-        writer=None,  # Will be set in main
+        writer=None
     )
     
     print(model)
@@ -103,7 +113,11 @@ def setup_federative_training(config, device):
     loss_function = instantiate(config.loss_function).to(device)
     
     # Create federative trainer
-    trainer = FederativeTrainer(
+    trainer_partial = instantiate(
+        config.trainer,
+        _partial_=True  # This tells Hydra not to instantiate the object yet
+    )
+    trainer = trainer_partial(
         model_A=domain_A_data["model"],
         optimizer_A=domain_A_data["optimizer"],
         lr_scheduler_A=domain_A_data["lr_scheduler"],
@@ -124,7 +138,7 @@ def setup_federative_training(config, device):
             domain_B_data["usernum"], 
             domain_B_data["itemnum"]
         ],
-        config=config,
+        config_json=config,
         criterion=loss_function,
         dataloaders={
             "train_A": domain_A_data["loader"], 
@@ -220,7 +234,11 @@ def setup_federative_training_common_users(config, device):
     loss_function = instantiate(config.loss_function).to(device)
     
     # Create federative trainer
-    trainer = FederativeTrainer(
+    trainer_partial = instantiate(
+        config.trainer,
+        _partial_=True  # This tells Hydra not to instantiate the object yet
+    )
+    trainer = trainer_partial(
         model_A=domain_A_data["model"],
         optimizer_A=domain_A_data["optimizer"],
         lr_scheduler_A=domain_A_data["lr_scheduler"],
@@ -241,7 +259,7 @@ def setup_federative_training_common_users(config, device):
             domain_B_data["usernum"], 
             domain_B_data["itemnum"]
         ],
-        config=config,
+        config_json=config,
         criterion=loss_function,
         dataloaders={
             "train_A": domain_A_data["loader"], 
@@ -272,8 +290,12 @@ def setup_domain_data(config, device, data_path, min_hist_len, dataset_name, bat
         dataset_name,
         user_idxs=user_idxs,
     )
-    
-    dataset = AmazonDataset(user_train, usernum, itemnum, 50)
+    dataset = instantiate(
+        config.dataset, 
+        user_train=user_train,
+        usernum=usernum, 
+        itemnum=itemnum,
+    )
     loader = torch.utils.data.DataLoader(
         dataset, shuffle=True,
         batch_size=batch_size, num_workers=2, pin_memory=True
@@ -295,12 +317,18 @@ def setup_domain_data(config, device, data_path, min_hist_len, dataset_name, bat
     # Configure optimizer and scheduler
     trainable_params = filter(lambda p: p.requires_grad, model.parameters())
     
-    if base_model is None:
-        optimizer = instantiate(config.trainer.domain_A.optimizer, params=trainable_params)
-        lr_scheduler = instantiate(config.trainer.domain_A.lr_scheduler, optimizer=optimizer)
+    if "domain_A" in dataset_name:
+        optimizer_partial = instantiate(config.trainer.domain_A.optimizer, _partial_=True)
+        optimizer = optimizer_partial(params=trainable_params)
+        
+        lr_scheduler_partial = instantiate(config.trainer.domain_A.lr_scheduler, _partial_=True)
+        lr_scheduler = lr_scheduler_partial(optimizer=optimizer)
     else:
-        optimizer = instantiate(config.trainer.domain_B.optimizer, params=trainable_params)
-        lr_scheduler = instantiate(config.trainer.domain_B.lr_scheduler, optimizer=optimizer)
+        optimizer_partial = instantiate(config.trainer.domain_B.optimizer, _partial_=True)
+        optimizer = optimizer_partial(params=trainable_params)
+        
+        lr_scheduler_partial = instantiate(config.trainer.domain_B.lr_scheduler, _partial_=True)
+        lr_scheduler = lr_scheduler_partial(optimizer=optimizer)
     
     return {
         "data_proc": data_proc,
@@ -347,13 +375,16 @@ def setup_frobenius_optimizer(config, trainable_params_A, trainable_params_B):
         {'params': trainable_params_A},
         {'params': trainable_params_B}
     ]
-    
-    optimizer_constructor = instantiate(
+    optimizer_partial = instantiate(
         config.trainer.approx.optimizer,
         _partial_=True
     )
+    optimizer_frob = optimizer_partial(params=trainable_params_common)
     
-    optimizer_frob = optimizer_constructor(trainable_params_common)
-    lr_scheduler_frob = instantiate(config.trainer.approx.lr_scheduler, optimizer=optimizer_frob)
+    lr_scheduler_partial = instantiate(
+        config.trainer.approx.lr_scheduler,
+        _partial_=True
+    )
+    lr_scheduler_frob = lr_scheduler_partial(optimizer=optimizer_frob)
     
     return optimizer_frob, lr_scheduler_frob

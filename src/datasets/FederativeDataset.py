@@ -9,7 +9,7 @@ from typing import Optional
 
 
 class FederativeDataset():
-    def __init__(self, dict1, dict2, user_map1, user_map2, maxlen_A, maxlen_B):
+    def __init__(self, dict1, dict2, user_map1, user_map2, maxlen_A, maxlen_B, **kwargs):
         self.common_list, self.num_common_ids = self.merge_with_common_ids_comprehensive(dict1, dict2, user_map1, user_map2)
         self.maxlen_A, self.maxlen_B = maxlen_A, maxlen_B
     

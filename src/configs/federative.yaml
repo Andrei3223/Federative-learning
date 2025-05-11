@@ -9,8 +9,12 @@ model:
     l2_emb: 0.0
     device: mps
 
+dataset:
+  _target_: src.datasets.AmazonDataset
+  maxlen: 50
 
 trainer:
+  _target_: src.trainer.FederativeTrainer
   domain_A:
     max_len: 50
     batch_size: 512
@@ -18,9 +22,11 @@ trainer:
     weight_decay: 0.0001
     optimizer:
       _target_: torch.optim.AdamW
+      _partial_: true
       lr: 1e-3
     lr_scheduler:
       _target_: torch.optim.lr_scheduler.StepLR
+      _partial_: true
       step_size: 10
       gamma: 0.95
     dataset:
@@ -36,9 +42,11 @@ trainer:
     weight_decay: 0.0001
     optimizer:
       _target_: torch.optim.AdamW
+      _partial_: true
       lr: 1e-3
     lr_scheduler:
       _target_: torch.optim.lr_scheduler.StepLR
+      _partial_: true
       step_size: 10
       gamma: 0.95
     dataset:
@@ -48,9 +56,11 @@ trainer:
   approx:
     optimizer:
       _target_: torch.optim.SGD
+      _partial_: true
       lr: 1e-2
     lr_scheduler:
       _target_: torch.optim.lr_scheduler.StepLR
+      _partial_: true
       step_size: 10
       gamma: 1
     loss_function: "Wasserstein"  # "Frobenius" or "Wasserstein"

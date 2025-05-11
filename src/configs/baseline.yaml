@@ -10,6 +10,7 @@ model:
     device: mps
 
 trainer:
+  _target_: src.trainer.BaseTrainer
   max_len: 50
   batch_size: 512
   n_epochs: 301
@@ -34,6 +35,8 @@ lr_scheduler:
 loss_function:
   _target_: torch.nn.BCEWithLogitsLoss
 dataset:
+  _target_: src.datasets.AmazonDataset
+  maxlen: 50
   min_hist_len: 4  # user has minimum k interactions, each item at least k times in dataset
   # data_path: data/datasets_5/Movies_and_TV_5.json
   data_path: /kaggle/working/Video_Games_5.json
