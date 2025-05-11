@@ -188,7 +188,8 @@ class BaseTrainer():
             with torch.no_grad():
                 if bert_evaluation:
                     seq = torch.LongTensor([seq]).to(self.device)
-                    predictions = -model(seq)
+                    predictions, _ = model(seq)
+                    predictions *= -1
                     predictions = predictions[0][-1][items] # sampling
                     rank = predictions.argsort().argsort()[0].item()
                 else:

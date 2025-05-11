@@ -41,8 +41,8 @@ class BERT(nn.Module):
         for transformer in self.transformer_blocks:
             x = transformer.forward(x, mask)
         
-        x = self.out(x)
-        return x
+        out = self.out(x)
+        return out, x
 
     def init_weights(self):
         pass
@@ -61,7 +61,3 @@ class BERT(nn.Module):
         result_info = result_info + f"\nTrainable parameters: {trainable_parameters}"
 
         return result_info
-
-
-# net = BERT(10, 10, 6, 8, 8, 0.4)
-# print(net)

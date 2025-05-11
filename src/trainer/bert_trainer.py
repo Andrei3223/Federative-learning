@@ -44,7 +44,7 @@ class BERTTrainer(BaseTrainer):
             self.model.train()
             for batch_idx, batch in enumerate(self.train_dataloader):
                 seq, labels = batch["seq"].to(self.device), batch["labels"].to(self.device)
-                logits = self.model(seq) # (bs, t, vocab)
+                logits, _ = self.model(seq) # (bs, t, vocab)
                 logits = logits.view(-1, logits.size(-1)) # (bs * t, vocab)
                 labels = labels.view(-1) 
 

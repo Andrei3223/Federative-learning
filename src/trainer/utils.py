@@ -311,7 +311,8 @@ def setup_domain_data(config, device, data_path, min_hist_len, dataset_name, bat
     else:
         model = instantiate(config.model).to(device)
         # Copy user embeddings from base model, but not item embeddings
-        filtered_state_dict = {k: v for k, v in base_model.state_dict().items() if 'item_emb' not in k}
+        filtered_state_dict = {k: v for k, v in base_model.state_dict().items() 
+                               if ('item_emb' not in k) and ('embedding' not in k) and ('out' not in k)}
         model.load_state_dict(filtered_state_dict, strict=False)
     
     # Configure optimizer and scheduler

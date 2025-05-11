@@ -1,0 +1,87 @@
+model:
+  _target_: src.models.BERT
+  bert_max_len: 50
+  bert_num_blocks: 2
+  bert_num_heads: 2
+  bert_hidden_units: 256
+  bert_dropout: 0.4
+  device: mps
+
+dataset:
+  _target_: src.datasets.BERT4RecDataSet
+  maxlen: 50
+  mask_prob: 0.15
+
+trainer:
+  _target_: src.trainer.BERTFederativeTrainer
+  domain_A:
+    max_len: 50
+    batch_size: 512
+    l2_emb: 5e-5
+    weight_decay: 0.0001
+    optimizer:
+      _target_: torch.optim.AdamW
+      _partial_: true
+      lr: 1e-3
+    lr_scheduler:
+      _target_: torch.optim.lr_scheduler.StepLR
+      _partial_: true
+      step_size: 10
+      gamma: 0.95
+    dataset:
+      min_hist_len: 4  # user has minimum k interactions, each item at least k times in dataset
+      data_path: data/datasets_5/Video_Games_5.json
+      name: video_games
+  
+  domain_B:
+    max_len: 50
+    batch_size: 512
+    # n_epochs: 3
+    l2_emb: 5e-5
+    weight_decay: 0.0001
+    optimizer:
+      _target_: torch.optim.AdamW
+      _partial_: true
+      lr: 1e-3
+    lr_scheduler:
+      _target_: torch.optim.lr_scheduler.StepLR
+      _partial_: true
+      step_size: 10
+      gamma: 0.95
+    dataset:
+      min_hist_len: 4  # user has minimum k interactions, each item at least k times in dataset
+      # data_path: data/datasets_5/Movies_and_TV_5.json
+      # name: movies
+      data_path: data/datasets_5/All_Beauty_5.json
+      name: beauty
+  approx:
+    optimizer:
+      _target_: torch.optim.SGD
+      _partial_: true
+      lr: 1e-2
+    lr_scheduler:
+      _target_: torch.optim.lr_scheduler.StepLR
+      _partial_: true
+      step_size: 10
+      gamma: 1
+    loss_function: "Wasserstein"  # "Frobenius" or "Wasserstein"
+  only_common_users: False 
+  device: mps  # device name ("cuda"/"cpu"/"mps") or "auto"
+  federative: True
+  n_epochs: 401
+  save_freq: 20
+  val_freq: 1
+  common_data_bs: 256
+  embed_step_freq: 1  # approximation step ones in k epochs
+
+
+loss_function:
+  _target_: torch.nn.CrossEntropyLoss
+  ignore_index: 0
+
+wandb:
+  project: "federative_learning_bert"
+  log_checkpoints: True
+  entity: null
+  run_name: "federative"
+  mode: "online"

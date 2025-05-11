@@ -82,6 +82,8 @@ class FederativeTrainer(BaseTrainer):
         self.checkpoint_dir = Path(self.config.get("checkpoint_dir", "models"))
         if not os.path.exists(self.checkpoint_dir):
             os.makedirs(self.checkpoint_dir)
+        
+        self.bert_evaluation=False  # flag for bert4rec
     
     def train_epoch(self, train_config, model, train_dataloader, optimizer, lr_scheduler=None, name="A"):
         model.train()
@@ -115,7 +117,7 @@ class FederativeTrainer(BaseTrainer):
 
         optimizer.zero_grad()
     
-    def approximate_epoch(self, emb_type="last_embed"):
+    def approximate_epoch(self, emb_type="out_avg"):
         self.optimizer_A.zero_grad()
         self.optimizer_B.zero_grad()
     
@@ -221,14 +223,14 @@ class FederativeTrainer(BaseTrainer):
             if epoch % self.config_trainer.get("val_freq", 10) == 0:
                 self.model_A.eval()
                 self.model_B.eval()
-                NDCG, HT = self.evaluate_valid(self.model_A, self.dataset_A, self.max_len_A)
+                NDCG, HT = self.evaluate_valid(self.model_A, self.dataset_A, self.max_len_A, bert_evaluation=self.bert_evaluation)
                 self.writer.log({f"NDCG_{name_A}": NDCG, f"HT_{name_A}": HT}, commit=False)
-                NDCG_B, HT_B = self.evaluate_valid(self.model_B, self.dataset_B, self.max_len_B)
+                NDCG_B, HT_B = self.evaluate_valid(self.model_B, self.dataset_B, self.max_len_B, bert_evaluation=self.bert_evaluation)
                 self.writer.log({f"NDCG_{name_B}": NDCG_B, f"HT_{name_B}": HT_B}, commit=False)
 
-                NDCG, HT = self.evaluate_valid(self.model_A, self.dataset_A, self.max_len_A, self.idxs_common_A)
+                NDCG, HT = self.evaluate_valid(self.model_A, self.dataset_A, self.max_len_A, self.idxs_common_A, bert_evaluation=self.bert_evaluation)
                 self.writer.log({f"NDCG_{name_A}_common_users": NDCG, f"HT_{name_A}_common_users": HT}, commit=False)
-                NDCG_B, HT_B = self.evaluate_valid(self.model_B, self.dataset_B, self.max_len_B, self.idxs_common_B)
+                NDCG_B, HT_B = self.evaluate_valid(self.model_B, self.dataset_B, self.max_len_B, self.idxs_common_B, bert_evaluation=self.bert_evaluation)
                 self.writer.log({f"NDCG_{name_B}_common_users": NDCG_B, f"HT_{name_B}_common_users": HT_B}, commit=False)
 
                 print(f"validation on {epoch=}: {NDCG=}, {HT=}, {NDCG_B=}, {HT_B=}")
@@ -244,14 +246,14 @@ class FederativeTrainer(BaseTrainer):
         self.model_A.eval()
         self.model_B.eval()
         result = {}
-        NDCG, HT = self.evaluate_valid(self.model_A, self.dataset_A, self.max_len_A, num_neg=self.num_neg)
+        NDCG, HT = self.evaluate_valid(self.model_A, self.dataset_A, self.max_len_A, num_neg=self.num_neg, bert_evaluation=self.bert_evaluation)
         result |= {f"NDCG_{name_A}": NDCG, f"HT_{name_A}": HT}
-        NDCG_B, HT_B = self.evaluate_valid(self.model_B, self.dataset_B, self.max_len_B, num_neg=self.num_neg)
+        NDCG_B, HT_B = self.evaluate_valid(self.model_B, self.dataset_B, self.max_len_B, num_neg=self.num_neg, bert_evaluation=self.bert_evaluation)
         result |= {f"NDCG_{name_B}": NDCG_B, f"HT_{name_B}": HT_B}
 
-        NDCG, HT = self.evaluate_valid(self.model_A, self.dataset_A, self.max_len_A, self.idxs_common_A, num_neg=self.num_neg)
+        NDCG, HT = self.evaluate_valid(self.model_A, self.dataset_A, self.max_len_A, self.idxs_common_A, num_neg=self.num_neg, bert_evaluation=self.bert_evaluation)
         result |= {f"NDCG_{name_A}_common_users": NDCG, f"HT_{name_A}_common_users": HT}
-        NDCG_B, HT_B = self.evaluate_valid(self.model_B, self.dataset_B, self.max_len_B, self.idxs_common_B, num_neg=self.num_neg)
+        NDCG_B, HT_B = self.evaluate_valid(self.model_B, self.dataset_B, self.max_len_B, self.idxs_common_B, num_neg=self.num_neg, bert_evaluation=self.bert_evaluation)
         result |= {f"NDCG_{name_B}_common_users": NDCG_B, f"HT_{name_B}_common_users": HT_B}
 
         if dataset_common:
