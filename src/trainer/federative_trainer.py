@@ -295,6 +295,7 @@ class FederativeTrainer(BaseTrainer):
             num_neg=100,
             cold_domain_first=0,  # 0 or 1
             test_param=False,
+            bert_evaluation=False,
         ):
         """
         Args:
@@ -319,40 +320,52 @@ class FederativeTrainer(BaseTrainer):
         NDCG = 0.0
         valid_user = 0.0
         HT = 0.0
+        _all_items = set([i for i in range(1, itemnum_other + 1)])  # for neg sampling
 
         for u, sample in enumerate(dataset_common.common_list):
             train_initial = sample[1 + 2 * cold_domain_first]
             idx_in_cold_dataset = sample[2 - 2 * cold_domain_first]
             if len(train_initial) < 1 or len(valid_other[idx_in_cold_dataset]) < 1: 
                 continue
-            # Create sequence from user history
-            seq = np.zeros(maxlen, dtype=np.int64)
-            idx = maxlen - 1
-            for i in reversed(train_initial):
-                seq[idx] = i
-                idx -= 1
-                if idx == -1: 
-                    break
 
-            # Create set of items user has already interacted with
-            rated = set(train_initial)
-            rated.add(0)
-            
-            # Add positive item (from validation) with 100 negative samples
-            item_idx = [valid_other[idx_in_cold_dataset][0]]
-            for _ in range(num_neg):
-                t = np.random.randint(1, itemnum_other + 1)
-                while t in rated: 
+            if not bert_evaluation:
+                # Create sequence from user history
+                seq = np.zeros(maxlen, dtype=np.int64)
+                idx = maxlen - 1
+                for i in reversed(train_initial):
+                    seq[idx] = i
+                    idx -= 1
+                    if idx == -1: 
+                        break
+                # Create set of items user has already interacted with
+                rated = set(train_other)
+                rated.add(0)
+                # Add positive item (from validation) with num_neg negative samples
+                item_idx = [valid_other[idx_in_cold_dataset][0]]
+                for _ in range(num_neg):
                     t = np.random.randint(1, itemnum_other + 1)
-                item_idx.append(t)
-
+                    while t in rated: 
+                        t = np.random.randint(1, itemnum_other + 1)
+                    item_idx.append(t)
+            else:
+                seq = (train_initial + [model_initial.item_num + 1])[-maxlen:] # mask last token
+                padding_len = maxlen - len(seq)
+                seq = [0] * padding_len + seq
+                rated = train_other + valid_other[idx_in_cold_dataset]
+                items = valid_other[idx_in_cold_dataset] + random.sample(list(_all_items - set(rated)), num_neg)
             
             # Get model predictions
             with torch.no_grad():
-                item_embs = model_cold_domain.item_emb(torch.LongTensor(item_idx).to(self.device))  # get item embeds from cold domen
-                predictions = -model_initial.predict_other_model_items(np.array([seq]), item_embs)
-                # print(predictions.shape)
-                predictions = predictions[0]
+                if bert_evaluation:
+                    seq = torch.LongTensor([seq]).to(self.device)
+                    _, emb = model_initial(seq)
+                    predictions = model_cold_domain.out(emb)
+                    predictions *= -1
+                    predictions = predictions[0][-1][items] # sampling
+                else:
+                    item_embs = model_cold_domain.item_emb(torch.LongTensor(item_idx).to(self.device))  # get item embeds from cold domen
+                    predictions = -model_initial.predict_other_model_items(np.array([seq]), item_embs)
+                    predictions = predictions[0]
 
                 rank = predictions.argsort().argsort()[0].item()
 
@@ -371,3 +384,58 @@ class FederativeTrainer(BaseTrainer):
             NDCG = 0
             HT = 0
         return NDCG, HT
+    
+    def _resume_checkpoint(self, resume_path, domain="A"):
+        """
+        Resume from a saved checkpoint (in case of server crash, etc.).
+        The function loads state dicts for everything, including model,
+        optimizers, etc.
+
+        Notice that the checkpoint should be located in the current experiment
+        saved directory (where all checkpoints are saved in '_save_checkpoint').
+
+        Args:
+            resume_path (str): Path to the checkpoint to be resumed.
+        """
+        resume_path = str(resume_path)
+        print(f"Loading checkpoint: {resume_path} ...")
+        checkpoint = torch.load(resume_path, self.device, weights_only=False)
+        self.start_epoch = checkpoint["epoch"] + 1
+        # self.mnt_best = checkpoint["monitor_best"]
+
+        # load architecture params from checkpoint.
+        if checkpoint["config"]["model"] != self.config["model"]:
+            print(
+                "Warning: Architecture configuration given in the config file is different from that "
+                "of the checkpoint. This may yield an exception when state_dict is loaded."
+            )
+
+        # load optimizer state from checkpoint only when optimizer type is not changed.
+        if domain == "A":
+            config = self.cfg_trainer_A
+            self.model_A.load_state_dict(checkpoint["state_dict"])
+        else:
+            config = self.cfg_trainer_B
+            self.model_B.load_state_dict(checkpoint["state_dict"])
+    
+        # if (
+        #     checkpoint["config"]["optimizer"] != config["optimizer"]
+        #     or checkpoint["config"]["lr_scheduler"] != config["lr_scheduler"]
+        # ):
+        #     print(
+        #         "Warning: Optimizer or lr_scheduler given in the config file is different "
+        #         "from that of the checkpoint. Optimizer and scheduler parameters "
+        #         "are not resumed."
+        #     )
+        # else:
+        # print(checkpoint["config"])
+        if domain == "A":
+            self.optimizer_A.load_state_dict(checkpoint["optimizer"])
+            self.lr_scheduler_A.load_state_dict(checkpoint["lr_scheduler"])
+        else:
+            self.optimizer_B.load_state_dict(checkpoint["optimizer"])
+            self.lr_scheduler_B.load_state_dict(checkpoint["lr_scheduler"])
+
+        print(
+            f"Checkpoint loaded. Resume training from epoch {self.start_epoch}"
+        )

@@ -1,0 +1,39 @@
+model:
+  _target_: src.models.BERT
+  bert_max_len: 50
+  bert_num_blocks: 2
+  bert_num_heads: 2
+  bert_hidden_units: 256
+  bert_dropout: 0.4
+  device: mps
+
+dataset:
+  _target_: src.datasets.BERT4RecDataSet
+  maxlen: 50
+  mask_prob: 0.15
+
+trainer:
+  _target_: src.trainer.BERTFederativeTrainer
+  domain_A:
+    max_len: 50
+    batch_size: 128
+    model_path: models/best/bert_federative_movie_video_games_moviescheckpoint-epoch60.pth
+    dataset:
+      min_hist_len: 4  # user has minimum k interactions, each item at least k times in dataset
+      data_path: data/datasets_5/Movies_and_TV_5.json
+      # data_path: data/datasets_5/Clothing_Shoes_and_Jewelry_5.json
+      name: movies
+  domain_B:
+    max_len: 50
+    batch_size: 128
+    model_path: models/best/bert_federative_movie_video_games_video_gamescheckpoint-epoch60.pth
+    dataset:
+      min_hist_len: 4  # user has minimum k interactions, each item at least k times in dataset
+      # data_path: data/datasets_5/Sports_and_Outdoors_5.json
+      data_path: data/datasets_5/Video_Games_5.json
+      name: video_games
+  device: mps # device name ("cuda"/"cpu"/"mps") or "auto"
+  federative: True
+  n_epochs: -1
+  common_data_bs: 256
+  num_neg: 500

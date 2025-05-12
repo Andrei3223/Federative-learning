@@ -15,8 +15,9 @@ dataset:
 trainer:
   _target_: src.trainer.BERTFederativeTrainer
   domain_A:
+    checkpoint: models/best/bert_federative_movie_video_games_video_gamescheckpoint-epoch60.pth
     max_len: 50
-    batch_size: 512
+    batch_size: 128
     l2_emb: 5e-5
     weight_decay: 0.0001
     optimizer:
@@ -34,8 +35,9 @@ trainer:
       name: video_games
   
   domain_B:
+    checkpoint: "models/best/bert_federative_movie_video_games_moviescheckpoint-epoch60.pth"
     max_len: 50
-    batch_size: 512
+    batch_size: 128
     # n_epochs: 3
     l2_emb: 5e-5
     weight_decay: 0.0001
@@ -50,10 +52,10 @@ trainer:
       gamma: 0.95
     dataset:
       min_hist_len: 4  # user has minimum k interactions, each item at least k times in dataset
-      # data_path: data/datasets_5/Movies_and_TV_5.json
-      # name: movies
-      data_path: data/datasets_5/All_Beauty_5.json
-      name: beauty
+      data_path: data/datasets_5/Movies_and_TV_5.json
+      name: movies
+      # data_path: data/datasets_5/All_Beauty_5.json
+      # name: beauty
   approx:
     optimizer:
       _target_: torch.optim.SGD
@@ -68,9 +70,9 @@ trainer:
   only_common_users: False 
   device: mps  # device name ("cuda"/"cpu"/"mps") or "auto"
   federative: True
-  n_epochs: 401
-  save_freq: 20
-  val_freq: 1
+  n_epochs: 90
+  save_freq: 5
+  val_freq: 5
   common_data_bs: 256
   embed_step_freq: 1  # approximation step ones in k epochs
 

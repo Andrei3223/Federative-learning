@@ -9,31 +9,36 @@ model:
     l2_emb: 0.0
     device: mps
 
+dataset:
+  _target_: src.datasets.AmazonDataset
+  maxlen: 50
+
 trainer:
+  _target_: src.trainer.FederativeTrainer
   domain_A:
     max_len: 50
     batch_size: 512
     # model_path: models/best/fed_movie_kindle_wasser_2approx_moviecheckpoint-epoch390.pth
     # model_path: models/best/movies_checkpoint-epoch300.pth
-    # model_path: models/best/fed_mov_vid_avg_emb_moviecheckpoint-epoch390.pth
-    model_path: models/best/fed_mov_vid_multistep_clothcheckpoint-epoch150.pth
+    model_path: models/best/fed_mov_vid_avg_emb_moviecheckpoint-epoch390.pth
+    # model_path: models/best/fed_mov_vid_multistep_clothcheckpoint-epoch150.pth
     dataset:
       min_hist_len: 4  # user has minimum k interactions, each item at least k times in dataset
-      # data_path: data/datasets_5/Movies_and_TV_5.json
-      data_path: data/datasets_5/Clothing_Shoes_and_Jewelry_5.json
-      name: cloth
+      data_path: data/datasets_5/Movies_and_TV_5.json
+      # data_path: data/datasets_5/Clothing_Shoes_and_Jewelry_5.json
+      name: movies
   domain_B:
     max_len: 50
     batch_size: 512
     # model_path: models/best/video_games_checkpoint-epoch300.pth
-    # model_path: models/best/fed_mov_vid_avg_emb_video_gamescheckpoint-epoch390.pth
-    model_path: models/best/fed_mov_vid_multistep_sportscheckpoint-epoch150.pth
+    model_path: models/best/fed_mov_vid_avg_emb_video_gamescheckpoint-epoch390.pth
+    # model_path: models/best/fed_mov_vid_multistep_sportscheckpoint-epoch150.pth
     # model_path: models/best/fed_movie_kindle_wasser_2approx_video_gamescheckpoint-epoch390.pth
     dataset:
       min_hist_len: 4  # user has minimum k interactions, each item at least k times in dataset
-      data_path: data/datasets_5/Sports_and_Outdoors_5.json
-      # data_path: data/datasets_5/Kindle_Store_5.json
-      name: sport
+      # data_path: data/datasets_5/Sports_and_Outdoors_5.json
+      data_path: data/datasets_5/Video_Games_5.json
+      name: video_games
   device: mps # device name ("cuda"/"cpu"/"mps") or "auto"
   federative: True
   n_epochs: -1

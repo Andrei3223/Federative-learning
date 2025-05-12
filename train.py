@@ -49,6 +49,10 @@ def main(config):
     else:
         trainer = setup_basic_training(config, device)
 
+    #load model
+    if "checkpoint" in config.trainer.domain_A:
+        trainer._resume_checkpoint(config.trainer.domain_A.checkpoint, domain="A")
+        trainer._resume_checkpoint(config.trainer.domain_B.checkpoint, domain="B")
     # wandb
     run = wandb.init(
         project=config.wandb.get("project"),

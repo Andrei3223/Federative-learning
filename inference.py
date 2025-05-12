@@ -41,7 +41,13 @@ def main(config):
             "data/preprocessed",
             config.trainer.domain_A.dataset["name"]
         )
-        dataset = AmazonDataset(user_train, usernum, itemnum, 50)
+        # dataset = AmazonDataset(user_train, usernum, itemnum, 50)
+        dataset = instantiate(
+            config.dataset, 
+            user_train=user_train,
+            usernum=usernum, 
+            itemnum=itemnum,
+        )
         train_loader = torch.utils.data.DataLoader(
             dataset, shuffle=True,
             batch_size=config.trainer.domain_A.batch_size, num_workers=2, pin_memory=True
@@ -62,7 +68,13 @@ def main(config):
             "data/preprocessed",
            config.trainer.domain_B.dataset["name"],
         )
-        dataset_B = AmazonDataset(user_train_B, usernum_B, itemnum_B, 50)
+        # dataset_B = AmazonDataset(user_train_B, usernum_B, itemnum_B, 50)
+        dataset_B = instantiate(
+            config.dataset, 
+            user_train=user_train_B,
+            usernum=usernum_B, 
+            itemnum=itemnum_B,
+        )
         train_loader_B = torch.utils.data.DataLoader(
             dataset_B, shuffle=True,
             batch_size=config.trainer.domain_B.batch_size, num_workers=2, pin_memory=True
@@ -110,25 +122,47 @@ def main(config):
 
 
     if config.trainer.get("federative", False):
-        trainer = FederativeTrainer(
-            model,
-            None, None,
+        trainer_partial = instantiate(
+            config.trainer,
+            _partial_=True  # This tells Hydra not to instantiate the object yet
+        )
+        trainer = trainer_partial(
+            model_A=model,
+            optimizer_A=None,
+            lr_scheduler_A=None,
             dataset_A=[user_train, user_valid, user_test, usernum, itemnum],
             model_B=model_B,
             optimizer_B=None,lr_scheduler_B=None,
             dataset_B=[user_train_B, user_valid_B, user_test_B, usernum_B, itemnum_B],
-
-            config=config,
+            config_json=config,
             criterion=None,
             dataloaders={"train_A": train_loader, "train_B": train_loader_B, "common": common_loader},
             optimizer_frob=None, lr_scheduler_frob=None,
 
             idxs_common_A=idxs_common_A,
             idxs_common_B=idxs_common_B,
-
             device=device,
             writer=None,
         )
+        # trainer = FederativeTrainer(
+        #     model,
+        #     None, None,
+        #     dataset_A=[user_train, user_valid, user_test, usernum, itemnum],
+        #     model_B=model_B,
+        #     optimizer_B=None,lr_scheduler_B=None,
+        #     dataset_B=[user_train_B, user_valid_B, user_test_B, usernum_B, itemnum_B],
+
+        #     config_json=config,
+        #     criterion=None,
+        #     dataloaders={"train_A": train_loader, "train_B": train_loader_B, "common": common_loader},
+        #     optimizer_frob=None, lr_scheduler_frob=None,
+
+        #     idxs_common_A=idxs_common_A,
+        #     idxs_common_B=idxs_common_B,
+
+        #     device=device,
+        #     writer=None,
+        # )
     else:
         # TODO base inference
         trainer = BaseTrainer(
