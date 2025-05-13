@@ -87,7 +87,7 @@ class BERTFederativeTrainer(FederativeTrainer):
             # self._clip_grad_norm()
             optimizer.step()
             
-            self.writer.log({"train_loss":  loss.item()})
+            self.writer.log({f"train_loss_{name}":  loss.item()})
         
         if lr_scheduler is not None:
             lr_scheduler.step()
