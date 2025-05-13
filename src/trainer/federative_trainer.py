@@ -266,6 +266,7 @@ class FederativeTrainer(BaseTrainer):
                 num_neg=self.num_neg,
                 cold_domain_first=0,
                 test_param=False,
+                bert_evaluation=self.bert_evaluation,
             )
             NDCG_B2A_cold, HT_B2A_cold = self.evaluate_cold(
                 model_initial=self.model_B,
@@ -276,6 +277,7 @@ class FederativeTrainer(BaseTrainer):
                 num_neg=self.num_neg,
                 cold_domain_first=1,
                 test_param=False,
+                bert_evaluation=self.bert_evaluation,
             )
             result |= {f"NDCG_{name_B}_cold": NDCG_A2B_cold, f"HT_{name_B}_cold": HT_A2B_cold}
             result |= {f"NDCG_{name_A}_cold": NDCG_B2A_cold, f"HT_{name_A}_cold": HT_B2A_cold}
@@ -320,7 +322,7 @@ class FederativeTrainer(BaseTrainer):
         NDCG = 0.0
         valid_user = 0.0
         HT = 0.0
-        _all_items = set([i for i in range(1, itemnum_other + 1)])  # for neg sampling
+        _all_items = set([i for i in range(1, model_initial.item_num + 1)])  # for neg sampling
 
         for u, sample in enumerate(dataset_common.common_list):
             train_initial = sample[1 + 2 * cold_domain_first]
@@ -338,7 +340,7 @@ class FederativeTrainer(BaseTrainer):
                     if idx == -1: 
                         break
                 # Create set of items user has already interacted with
-                rated = set(train_other)
+                rated = set(train_initial)
                 rated.add(0)
                 # Add positive item (from validation) with num_neg negative samples
                 item_idx = [valid_other[idx_in_cold_dataset][0]]
@@ -351,7 +353,7 @@ class FederativeTrainer(BaseTrainer):
                 seq = (train_initial + [model_initial.item_num + 1])[-maxlen:] # mask last token
                 padding_len = maxlen - len(seq)
                 seq = [0] * padding_len + seq
-                rated = train_other + valid_other[idx_in_cold_dataset]
+                rated = train_initial + valid_other[idx_in_cold_dataset]
                 items = valid_other[idx_in_cold_dataset] + random.sample(list(_all_items - set(rated)), num_neg)
             
             # Get model predictions

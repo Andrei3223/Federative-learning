@@ -13,9 +13,9 @@ class BERT(nn.Module):
         # fix_random_seed_as(args.model_init_seed)
         # self.init_weights()
 
-        max_len = bert_max_len
-        item_num = item_num
-        n_layers = bert_num_blocks
+        self.max_len = bert_max_len
+        self.item_num = item_num
+        self.n_layers = bert_num_blocks
         heads = bert_num_heads
         vocab_size = item_num + 2
         hidden = bert_hidden_units
@@ -24,11 +24,11 @@ class BERT(nn.Module):
         self.device = device
 
         # embedding for BERT, sum of positional, segment, token embeddings
-        self.embedding = BERTEmbedding(vocab_size=vocab_size, embed_size=self.hidden, max_len=max_len, dropout=dropout)
+        self.embedding = BERTEmbedding(vocab_size=vocab_size, embed_size=self.hidden, max_len=self.max_len, dropout=dropout)
 
         # multi-layers transformer blocks, deep network
         self.transformer_blocks = nn.ModuleList(
-            [TransformerBlock(hidden, heads, hidden * 4, dropout) for _ in range(n_layers)])
+            [TransformerBlock(hidden, heads, hidden * 4, dropout) for _ in range(self.n_layers)])
         self.out = nn.Linear(hidden, item_num + 1)
         
     def forward(self, x):
