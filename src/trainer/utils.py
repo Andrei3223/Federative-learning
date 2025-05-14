@@ -277,7 +277,7 @@ def setup_federative_training_common_users(config, device):
     return trainer
 
 
-def setup_domain_data(config, device, data_path, min_hist_len, dataset_name, batch_size, user_idxs=None, base_model=None):
+def setup_domain_data(config, device, data_path, min_hist_len, dataset_name, batch_size, user_idxs=None, base_model=None, use_optimizer=True):
     """Set up data, model, optimizer, and scheduler for a domain."""
     data_proc = DataProcessor(
         data_path, "",
@@ -318,19 +318,21 @@ def setup_domain_data(config, device, data_path, min_hist_len, dataset_name, bat
     # Configure optimizer and scheduler
     trainable_params = filter(lambda p: p.requires_grad, model.parameters())
     
-    if "domain_A" in dataset_name:
-        optimizer_partial = instantiate(config.trainer.domain_A.optimizer, _partial_=True)
-        optimizer = optimizer_partial(params=trainable_params)
-        
-        lr_scheduler_partial = instantiate(config.trainer.domain_A.lr_scheduler, _partial_=True)
-        lr_scheduler = lr_scheduler_partial(optimizer=optimizer)
+    if use_optimizer:
+        if "domain_A" in dataset_name:
+            optimizer_partial = instantiate(config.trainer.domain_A.optimizer, _partial_=True)
+            optimizer = optimizer_partial(params=trainable_params)
+            
+            lr_scheduler_partial = instantiate(config.trainer.domain_A.lr_scheduler, _partial_=True)
+            lr_scheduler = lr_scheduler_partial(optimizer=optimizer)
+        else:
+            optimizer_partial = instantiate(config.trainer.domain_B.optimizer, _partial_=True)
+            optimizer = optimizer_partial(params=trainable_params)
+            
+            lr_scheduler_partial = instantiate(config.trainer.domain_B.lr_scheduler, _partial_=True)
+            lr_scheduler = lr_scheduler_partial(optimizer=optimizer)
     else:
-        optimizer_partial = instantiate(config.trainer.domain_B.optimizer, _partial_=True)
-        optimizer = optimizer_partial(params=trainable_params)
-        
-        lr_scheduler_partial = instantiate(config.trainer.domain_B.lr_scheduler, _partial_=True)
-        lr_scheduler = lr_scheduler_partial(optimizer=optimizer)
-    
+        lr_scheduler, optimizer = None, None
     return {
         "data_proc": data_proc,
         "user_train": user_train,

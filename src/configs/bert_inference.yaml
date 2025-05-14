@@ -17,7 +17,7 @@ trainer:
   domain_A:
     max_len: 50
     batch_size: 128
-    model_path: models/best/bert_federative_movie_video_games_moviescheckpoint-epoch60.pth
+    model_path: models/best/bert_federative_movie_video_games_moviescheckpoint-epoch100.pth
     dataset:
       min_hist_len: 4  # user has minimum k interactions, each item at least k times in dataset
       data_path: data/datasets_5/Movies_and_TV_5.json
@@ -26,12 +26,13 @@ trainer:
   domain_B:
     max_len: 50
     batch_size: 128
-    model_path: models/best/bert_federative_movie_video_games_video_gamescheckpoint-epoch60.pth
+    model_path: models/best/bert_federative_movie_video_games_video_gamescheckpoint-epoch100.pth
     dataset:
       min_hist_len: 4  # user has minimum k interactions, each item at least k times in dataset
       # data_path: data/datasets_5/Sports_and_Outdoors_5.json
       data_path: data/datasets_5/Video_Games_5.json
       name: video_games
+  only_common_users: False
   device: mps # device name ("cuda"/"cpu"/"mps") or "auto"
   federative: True
   n_epochs: -1
