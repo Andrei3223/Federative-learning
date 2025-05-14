@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 
+# Havily based on https://github.com/YunlongLin0125/Recommender-System
 
 class PointWiseFeedForward(torch.nn.Module):
     def __init__(self, hidden_units, dropout_rate):

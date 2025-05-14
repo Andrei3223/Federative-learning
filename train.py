@@ -8,15 +8,10 @@ import wandb
 
 # from src.datasets.data_utils import get_dataloaders
 from src.trainer import (
-    BaseTrainer,
-    FederativeTrainer,
     setup_basic_training,
     setup_federative_training_common_users,
     setup_federative_training,
 )
-# from src.utils.init_utils import set_random_seed, setup_saving_and_logging
-from src.datasets import DataProcessor
-from src.datasets import AmazonDataset, FederativeDataset
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
@@ -50,7 +45,7 @@ def main(config):
         trainer = setup_basic_training(config, device)
 
     #load model
-    if "checkpoint" in config.trainer.domain_A:
+    if "domain_A" in config.trainer and "checkpoint" in config.trainer.domain_A:
         trainer._resume_checkpoint(config.trainer.domain_A.checkpoint, domain="A")
         trainer._resume_checkpoint(config.trainer.domain_B.checkpoint, domain="B")
     # wandb
